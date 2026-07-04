@@ -84,12 +84,15 @@ AI import ──▶ builder ─┘        (validated)
 }
 ```
 
-- **`weighted-outcomes`** covers the vast majority of internet quizzes:
-  every option adds weight to one or more outcomes; highest total wins.
-  Simple most-picked quizzes are the degenerate case (weight 1 to one
-  outcome). Dimension/scale quizzes (Big Five) can be modeled as outcomes
-  per pole; a dedicated `dimensions` scoring type is a v2 extension, and the
-  `version` + `scoring` fields leave room for it.
+- **Scoring types.** `dimensions` (bipolar axes like MBTI's E/I) shipped
+  first, in M1, because the flagship template — dynomight's Fastest
+  Personality Test — is axis-scored: 32 statement *pairs* on a 5-point
+  scale (`type: "scale"` questions with a pole on each side), 8 per axis,
+  each axis binned into 5 bins with dynomight's casing convention
+  (uppercase = clear call, lowercase = near the middle). The
+  `weighted-outcomes` type described above (options add weight to
+  outcomes; highest total wins) lands with the template library/builder in
+  M2. The `version` + `scoring` fields keep the two coexisting.
 - **Second-person problem**: quizzes are written as "Do *you* prefer...".
   Two-layer fix: the submit page frames everything as *"Answer as if you
   were {name}"* (works verbatim for any quiz), and AI import / builder can
@@ -225,10 +228,11 @@ in the app.
 
 Each milestone ends deployed and usable.
 
-- **M1 — Core loop (the whole idea, minimally).** Scaffold Worker + Hono +
-  D1 + React; migrations; **one** hardcoded template quiz. Create round →
+- **M1 — Core loop (the whole idea, minimally). ✅ Shipped.** Worker + Hono +
+  D1 + React scaffold; migrations; one hardcoded template quiz (dynomight's
+  Fastest Personality Test, 32 items, dimensions-scored). Create round →
   two links → friends submit → owner dashboard with consensus + verdict
-  spread + per-question distributions. *This alone proves the product.*
+  spread + agree/argue question breakdowns. *This alone proves the product.*
 - **M2 — Template library + manual builder.** Seed 4–6 templates; template
   picker; builder UI (add/edit questions, options, outcome weights) with
   zod validation; quiz saving.
@@ -243,8 +247,8 @@ Each milestone ends deployed and usable.
 
 - **Results visibility for friends** — per-round setting; default = friend
   sees their own result only, not the group's, until the owner shares.
-- **Dimension-scored quizzes** (Big Five–style axes) — `scoring: "dimensions"`
-  as a v2 type; the format is versioned to allow it.
+- ~~**Dimension-scored quizzes**~~ — pulled forward into M1 (see above);
+  `weighted-outcomes` is now the type that lands in M2 instead.
 - **Owner-link recovery** — no accounts means no recovery; v2 could add an
   optional email-the-link-to-me field without becoming an auth system.
 - **Moderation/abuse** — share links are public; v1 relies on obscure tokens,
