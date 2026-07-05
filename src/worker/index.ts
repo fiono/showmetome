@@ -47,7 +47,15 @@ interface QuizRow {
   source: QuizInfo["source"];
   definition: string;
   is_public: number;
+  round_count: number;
+  submission_count: number;
 }
+
+/** Selects quiz rows with derived popularity counts. */
+const QUIZ_SELECT = `SELECT q.id, q.title, q.source, q.definition, q.is_public,
+  (SELECT COUNT(*) FROM rounds r WHERE r.quiz_id = q.id) AS round_count,
+  (SELECT COUNT(*) FROM submissions s JOIN rounds r ON r.id = s.round_id WHERE r.quiz_id = q.id) AS submission_count
+FROM quizzes q`;
 
 function quizInfo(row: QuizRow, quiz: QuizDefinition): QuizInfo {
   return {
@@ -58,6 +66,8 @@ function quizInfo(row: QuizRow, quiz: QuizDefinition): QuizInfo {
     source: row.source,
     questionCount: quiz.questions.length,
     isPublic: row.is_public === 1,
+    roundCount: row.round_count,
+    submissionCount: row.submission_count,
   };
 }
 
@@ -84,23 +94,36 @@ app.post("/quizzes", async (c) => {
     .bind(id, quiz.title, json, Date.now(), isPublic)
     .run();
   return c.json(
-    quizInfo({ id, title: quiz.title, source: "manual", definition: json, is_public: isPublic }, quiz),
+    quizInfo(
+      {
+        id,
+        title: quiz.title,
+        source: "manual",
+        definition: json,
+        is_public: isPublic,
+        round_count: 0,
+        submission_count: 0,
+      },
+      quiz,
+    ),
     201,
   );
 });
 
 // Must be registered before /quizzes/:id or the :id route captures "public".
 app.get("/quizzes/public", async (c) => {
+  const order =
+    c.req.query("sort") === "recent"
+      ? "q.created_at DESC"
+      : "submission_count DESC, round_count DESC, q.created_at DESC";
   const { results } = await c.env.DB.prepare(
-    "SELECT id, title, source, definition, is_public FROM quizzes WHERE is_public = 1 ORDER BY created_at DESC LIMIT 50",
+    `${QUIZ_SELECT} WHERE q.is_public = 1 AND q.delisted = 0 ORDER BY ${order} LIMIT 50`,
   ).all<QuizRow>();
   return c.json(results.map((row) => quizInfo(row, parseQuizDefinition(JSON.parse(row.definition)))));
 });
 
 app.get("/quizzes/:id", async (c) => {
-  const row = await c.env.DB.prepare(
-    "SELECT id, title, source, definition, is_public FROM quizzes WHERE id = ?",
-  )
+  const row = await c.env.DB.prepare(`${QUIZ_SELECT} WHERE q.id = ?`)
     .bind(c.req.param("id"))
     .first<QuizRow>();
   if (!row) return c.json({ error: "quiz not found" }, 404);

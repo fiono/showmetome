@@ -158,6 +158,10 @@ export interface QuizInfo {
   questionCount: number;
   /** Owner opted in to listing this quiz on the homepage. */
   isPublic: boolean;
+  /** Rounds ever created from this quiz. */
+  roundCount: number;
+  /** Times anyone completed this quiz (submissions across all its rounds). */
+  submissionCount: number;
 }
 
 export interface CreateRoundResponse {

@@ -261,9 +261,12 @@ copying.
 - ~~**Homepage gallery of popular quizzes**~~ — shipped as owner-opt-in:
   a "list this quiz publicly" checkbox in the builder puts the quiz on the
   homepage (`/api/quizzes/public`, 50 most recent), where anyone can start
-  a round via its `/q/:quizId` permalink. Unlisted quizzes keep working via
-  their permalink; there is still no takedown tool beyond flipping
-  `is_public` in the database — revisit if strangers start using it.
+  a round via its `/q/:quizId` permalink, ranked by popularity (completions,
+  then rounds started — derived counts, not stored). Unlisted quizzes keep
+  working via their permalink. Takedown = setting the `delisted` column
+  (hides from the homepage, permalink unaffected); command documented in
+  the README. A report button + admin view remain future work if strangers
+  show up.
 
 - **Results visibility for friends** — per-round setting; default = friend
   sees their own result only, not the group's, until the owner shares.

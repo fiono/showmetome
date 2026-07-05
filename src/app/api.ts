@@ -52,7 +52,8 @@ export const api = {
 
   quizInfo: (quizId: string) => request<QuizInfo>(`/api/quizzes/${quizId}`),
 
-  publicQuizzes: () => request<QuizInfo[]>("/api/quizzes/public"),
+  publicQuizzes: (sort: "popular" | "recent" = "popular") =>
+    request<QuizInfo[]>(`/api/quizzes/public?sort=${sort}`),
 
   shareView: (shareToken: string) => request<ShareView>(`/api/rounds/share/${shareToken}`),
 

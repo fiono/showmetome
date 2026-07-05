@@ -48,6 +48,18 @@ export function QuizStart() {
         {quiz.description && <p className="small">{subst(quiz.description, "your friend")}</p>}
         <p className="small muted">
           {quiz.questionCount} question{quiz.questionCount === 1 ? "" : "s"}
+          {quiz.roundCount > 0 && (
+            <>
+              {" "}
+              &middot; {quiz.roundCount} round{quiz.roundCount === 1 ? "" : "s"} started
+            </>
+          )}
+          {quiz.submissionCount > 0 && (
+            <>
+              {" "}
+              &middot; answered {quiz.submissionCount} time{quiz.submissionCount === 1 ? "" : "s"}
+            </>
+          )}
           {quiz.attribution ? <> &middot; {quiz.attribution}</> : null}
         </p>
         <div className="linkbox">

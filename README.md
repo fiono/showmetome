@@ -56,3 +56,18 @@ Then:
 ```sh
 npm run deploy
 ```
+
+After pulling changes that add a file to `migrations/`, run
+`npm run db:migrate:remote` again before deploying.
+
+## Moderation
+
+Public listing is owner-opt-in, and the homepage ranks listed quizzes by
+popularity (completions, then rounds started — both derived by counting,
+not stored). There is no admin UI; to pull a problematic quiz off the
+homepage without breaking its permalink or existing rounds:
+
+```sh
+npx wrangler d1 execute showmetome --remote \
+  --command "UPDATE quizzes SET delisted = 1 WHERE id = 'quiz_...'"
+```

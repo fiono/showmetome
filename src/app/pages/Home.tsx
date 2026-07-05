@@ -95,6 +95,12 @@ export function Home() {
               <span className="small muted">
                 {" "}
                 &middot; {q.questionCount} question{q.questionCount === 1 ? "" : "s"}
+                {q.submissionCount > 0 && (
+                  <>
+                    {" "}
+                    &middot; answered {q.submissionCount} time{q.submissionCount === 1 ? "" : "s"}
+                  </>
+                )}
               </span>
             </Link>
           ))}
