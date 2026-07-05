@@ -2,6 +2,8 @@ import type {
   Answers,
   CreateRoundResponse,
   OwnerView,
+  QuizDefinition,
+  QuizInfo,
   ShareView,
   SubmissionResult,
   TemplateInfo,
@@ -36,11 +38,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   templates: () => request<TemplateInfo[]>("/api/templates"),
 
-  createRound: (templateId: string, subjectName: string) =>
+  createRound: (from: { templateId?: string; quizId?: string }, subjectName: string) =>
     request<CreateRoundResponse>("/api/rounds", {
       method: "POST",
-      body: JSON.stringify({ templateId, subjectName }),
+      body: JSON.stringify({ ...from, subjectName }),
     }),
+
+  saveQuiz: (definition: QuizDefinition) =>
+    request<QuizInfo>("/api/quizzes", {
+      method: "POST",
+      body: JSON.stringify({ definition }),
+    }),
+
+  quizInfo: (quizId: string) => request<QuizInfo>(`/api/quizzes/${quizId}`),
 
   shareView: (shareToken: string) => request<ShareView>(`/api/rounds/share/${shareToken}`),
 

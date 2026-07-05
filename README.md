@@ -5,9 +5,12 @@ every question *about you*, and you get the aggregate: the consensus
 result, where they agreed, and where they argued. See [PLAN.md](PLAN.md)
 for the full design.
 
-M1 ships one hardcoded quiz: the
+The built-in template is the
 [Fastest Personality Test](https://dynomight.net/mbti/) by dynomight
-(32 either/or items, four MBTI axes, five bins per axis).
+(32 either/or items, four MBTI axes, five bins per axis). The `/build`
+page creates your own quizzes: multiple-choice and 1–5 scale questions,
+scored either toward **outcomes** ("which kitchen appliance is {name}?")
+or along **axes** (MBTI-style spectrums).
 
 ## Stack
 

@@ -233,9 +233,13 @@ Each milestone ends deployed and usable.
   Fastest Personality Test, 32 items, dimensions-scored). Create round →
   two links → friends submit → owner dashboard with consensus + verdict
   spread + agree/argue question breakdowns. *This alone proves the product.*
-- **M2 — Template library + manual builder.** Seed 4–6 templates; template
-  picker; builder UI (add/edit questions, options, outcome weights) with
-  zod validation; quiz saving.
+- **M2 — Manual builder. ✅ Shipped (builder half).** The quiz format now
+  supports both scoring modes (`dimensions` axes and `weighted-outcomes`)
+  and both question types (1–5 scale pairs and multiple choice) in either
+  mode, with a shared hand-rolled validator used by the builder UI and the
+  API. `/build` creates quizzes; `/q/:quizId` is a saved quiz's bookmarkable
+  home for starting rounds. Remaining from the original M2 scope: seeding a
+  proper template library (4–6 curated quizzes).
 - **M3 — AI import.** URL fetch + text paste → LLM (Workers AI default,
   Anthropic-key optional) → schema-validated quiz JSON → opens in the
   builder for review → save. Handles the "arbitrary quizzes" promise.

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
-import { AxisChart } from "../components";
+import { AxisChart, OutcomeBars, subst } from "../components";
 import type { Answers, ShareView, SubmissionResult } from "../../shared/types";
 
 export function Submit() {
@@ -47,16 +47,37 @@ export function Submit() {
   const name = view.subjectName;
 
   if (result) {
-    const scores: Record<string, number[]> = {};
-    for (const axis of result.axes) scores[axis.dimension] = [axis.score];
     return (
       <div className="card">
         <h2>Your read on {name}</h2>
-        <div className="hero-type mono">{result.casedType}</div>
-        <p className="hero-sub">
-          Capital letters are clear calls; lowercase means you put {name} nearer the middle.
-        </p>
-        <AxisChart dimensions={quiz.dimensions} scores={scores} names={["you"]} />
+        {result.kind === "dimensions" ? (
+          <>
+            <div className="hero-type mono">{result.casedType}</div>
+            <p className="hero-sub">
+              Capital letters are clear calls; lowercase means you put {name} nearer the middle.
+            </p>
+            <AxisChart
+              dimensions={quiz.dimensions!}
+              scores={Object.fromEntries(result.axes.map((a) => [a.dimension, [a.score]]))}
+              names={["you"]}
+            />
+          </>
+        ) : (
+          <>
+            <div className="hero-type hero-outcome">
+              {quiz.outcomes!.find((o) => o.id === result.winnerId)?.label}
+            </div>
+            <p className="hero-sub">
+              {quiz.outcomes!.find((o) => o.id === result.winnerId)?.description ??
+                `That's your verdict on ${name}.`}
+            </p>
+            <OutcomeBars
+              outcomes={quiz.outcomes!}
+              totals={outcomeTotalsOf(result.scores)}
+              winnerId={result.winnerId}
+            />
+          </>
+        )}
         <p className="small" style={{ marginTop: 18 }}>
           Your answers are saved &mdash; {name} will see them blended with everyone
           else&rsquo;s.
@@ -84,9 +105,9 @@ export function Submit() {
       <div className="card">
         <h2>How well do you know {name}?</h2>
         <p className="small">
-          {name} wants to know how their friends see them. For each pair, pick the side that
-          sounds more like <b>{name}</b> &mdash; the middle box means &ldquo;equally
-          both&rdquo;. Go fast; first instincts are the good ones.
+          {name} wants to know how their friends see them &mdash; this is{" "}
+          <b>{subst(view.quiz.title, name)}</b>, answered <em>about {name}</em>. Pick whatever
+          sounds most like <b>{name}</b>. Go fast; first instincts are the good ones.
         </p>
         <label htmlFor="respondent">Your name (so {name} knows who said what)</label>
         <input
@@ -100,29 +121,58 @@ export function Submit() {
       </div>
 
       <div className="card">
-        {quiz.questions.map((q) => (
-          <div key={q.id} className={`pair${answers[q.id] !== undefined ? " pair-answered" : ""}`}>
-            <div className="pair-left">{q.left.text}</div>
-            <div className="scale" role="radiogroup" aria-label={`${q.left.text} vs ${q.right.text}`}>
-              {Array.from({ length: q.steps }, (_, i) => i + 1).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  aria-pressed={answers[q.id] === v}
-                  title={
-                    v === (q.steps + 1) / 2
-                      ? "equally both"
-                      : v < (q.steps + 1) / 2
-                        ? q.left.text
-                        : q.right.text
-                  }
-                  onClick={() => setAnswers((a) => ({ ...a, [q.id]: v }))}
-                />
-              ))}
+        {quiz.questions.map((q) =>
+          q.type === "scale" ? (
+            <div
+              key={q.id}
+              className={`pair${answers[q.id] !== undefined ? " pair-answered" : ""}`}
+            >
+              <div className="pair-left">{subst(q.left.text, name)}</div>
+              <div
+                className="scale"
+                role="radiogroup"
+                aria-label={`${subst(q.left.text, name)} vs ${subst(q.right.text, name)}`}
+              >
+                {Array.from({ length: q.steps }, (_, i) => i + 1).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-pressed={answers[q.id] === v}
+                    title={
+                      v === (q.steps + 1) / 2
+                        ? "equally both"
+                        : v < (q.steps + 1) / 2
+                          ? subst(q.left.text, name)
+                          : subst(q.right.text, name)
+                    }
+                    onClick={() => setAnswers((a) => ({ ...a, [q.id]: v }))}
+                  />
+                ))}
+              </div>
+              <div className="pair-right">{subst(q.right.text, name)}</div>
             </div>
-            <div className="pair-right">{q.right.text}</div>
-          </div>
-        ))}
+          ) : (
+            <div
+              key={q.id}
+              className={`choice${answers[q.id] !== undefined ? " pair-answered" : ""}`}
+            >
+              <div className="choice-text">{subst(q.text, name)}</div>
+              <div className="choice-options" role="radiogroup" aria-label={subst(q.text, name)}>
+                {q.options.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    className="choice-option"
+                    aria-pressed={answers[q.id] === o.id}
+                    onClick={() => setAnswers((a) => ({ ...a, [q.id]: o.id }))}
+                  >
+                    {subst(o.text, name)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ),
+        )}
       </div>
 
       {error && <p className="error">{error}</p>}
@@ -140,4 +190,11 @@ export function Submit() {
       </div>
     </>
   );
+}
+
+function outcomeTotalsOf(scores: Record<string, number>) {
+  const grand = Object.values(scores).reduce((a, b) => a + b, 0);
+  return Object.entries(scores)
+    .map(([id, total]) => ({ id, total, share: grand > 0 ? total / grand : 0 }))
+    .sort((a, b) => b.total - a.total);
 }

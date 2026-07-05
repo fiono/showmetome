@@ -4,6 +4,8 @@ import { BrowserRouter, Link, Route, Routes } from "react-router-dom";
 import { Home } from "./pages/Home";
 import { Submit } from "./pages/Submit";
 import { Dashboard } from "./pages/Dashboard";
+import { Builder } from "./pages/Builder";
+import { QuizStart } from "./pages/QuizStart";
 import "./styles.css";
 
 function App() {
@@ -18,13 +20,15 @@ function App() {
         </header>
         <Routes>
           <Route path="/" element={<Home />} />
+          <Route path="/build" element={<Builder />} />
+          <Route path="/q/:quizId" element={<QuizStart />} />
           <Route path="/s/:shareToken" element={<Submit />} />
           <Route path="/r/:ownerToken" element={<Dashboard />} />
           <Route path="*" element={<div className="card small">Nothing here.</div>} />
         </Routes>
         <footer className="site">
-          Quiz items from the{" "}
-          <a href="https://dynomight.net/mbti/">Fastest Personality Test</a> by DYNOMIGHT.
+          Your friends&rsquo; answers are stored so the subject can see them, aggregated and
+          per person.
         </footer>
       </div>
     </BrowserRouter>

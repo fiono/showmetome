@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { api } from "../api";
-import { AxisChart, CopyButton, QuestionRow, findQuestion } from "../components";
+import {
+  AxisChart,
+  CopyButton,
+  OutcomeBars,
+  QuestionBreakdown,
+  findQuestion,
+  subst,
+} from "../components";
 import type { OwnerView } from "../../shared/types";
 
 export function Dashboard() {
@@ -27,14 +34,24 @@ export function Dashboard() {
   if (!view || !ownerToken) return <div className="card small">Loading…</div>;
 
   const { round, quiz, aggregate, submissions } = view;
+  const subjectName = round.subjectName;
   const shareUrl = `${location.origin}/s/${round.shareToken}`;
   const n = aggregate.submissionCount;
-  const maxTally = aggregate.typeTally[0]?.count ?? 1;
 
-  const answeredQuestions = aggregate.questions.filter((q) => q.total > 0);
-  const bySd = [...answeredQuestions].sort((a, b) => a.sd - b.sd);
-  const mostAgreed = bySd.slice(0, 3);
-  const mostDivided = bySd.slice(-3).reverse();
+  const withAnswers = aggregate.questions.filter((q) => q.total > 0);
+  const byDisagreement = [...withAnswers].sort((a, b) => a.disagreement - b.disagreement);
+  // Show at most 3 of each, never overlapping — with few questions the
+  // "every question" list below already tells the whole story.
+  const highlightCount = Math.min(3, Math.floor(byDisagreement.length / 2));
+  const mostAgreed = byDisagreement.slice(0, highlightCount);
+  const mostDivided = byDisagreement.slice(-highlightCount).reverse();
+
+  const verdictOf = (s: (typeof submissions)[number]) => {
+    const r = s.result;
+    return r.kind === "dimensions"
+      ? r.casedType
+      : (quiz.definition.outcomes!.find((o) => o.id === r.winnerId)?.label ?? r.winnerId);
+  };
 
   async function setStatus(status: "open" | "closed") {
     await api.setStatus(ownerToken!, status);
@@ -59,10 +76,11 @@ export function Dashboard() {
 
       <div className="card">
         <h2>
-          {round.subjectName}, according to {n === 0 ? "your friends" : `${n} friend${n === 1 ? "" : "s"}`}
+          {subjectName}, according to {n === 0 ? "your friends" : `${n} friend${n === 1 ? "" : "s"}`}
         </h2>
         <p className="small muted">
-          {quiz.title} &middot; {quiz.attribution} &middot; round{" "}
+          {subst(quiz.title, subjectName)}
+          {quiz.attribution ? <> &middot; {quiz.attribution}</> : null} &middot; round{" "}
           {round.status === "open" ? "open" : "closed"}
         </p>
         <label>Share link — send this to friends</label>
@@ -101,38 +119,75 @@ export function Dashboard() {
               <h3 style={{ margin: 0 }} className="small muted">
                 CONSENSUS
               </h3>
-              <div className="hero-type mono">{aggregate.consensus!.casedType}</div>
-              <p className="hero-sub">
-                Averaged across {n} answer{n === 1 ? "" : "s"}. Capital letters are clear
-                calls; lowercase means your friends put you nearer the middle.
-              </p>
-              <div className="legend">
-                <span>
-                  <span className="swatch" /> a friend&rsquo;s read
-                </span>
-                <span>
-                  <span className="swatch-consensus" /> consensus
-                </span>
-              </div>
-              <AxisChart
-                dimensions={quiz.definition.dimensions}
-                scores={aggregate.axisScores}
-                consensus={Object.fromEntries(
-                  aggregate.consensus!.axes.map((a) => [a.dimension, a.score]),
-                )}
-                names={names}
-              />
+              {aggregate.kind === "dimensions" ? (
+                <>
+                  <div className="hero-type mono">
+                    {aggregate.consensus!.kind === "dimensions" && aggregate.consensus!.casedType}
+                  </div>
+                  <p className="hero-sub">
+                    Averaged across {n} answer{n === 1 ? "" : "s"}. Capital letters are clear
+                    calls; lowercase means your friends put you nearer the middle.
+                  </p>
+                  <div className="legend">
+                    <span>
+                      <span className="swatch" /> a friend&rsquo;s read
+                    </span>
+                    <span>
+                      <span className="swatch-consensus" /> consensus
+                    </span>
+                  </div>
+                  <AxisChart
+                    dimensions={quiz.definition.dimensions!}
+                    scores={aggregate.axisScores}
+                    consensus={
+                      aggregate.consensus!.kind === "dimensions"
+                        ? Object.fromEntries(
+                            aggregate.consensus!.axes.map((a) => [a.dimension, a.score]),
+                          )
+                        : undefined
+                    }
+                    names={names}
+                  />
+                </>
+              ) : (
+                <>
+                  <div className="hero-type hero-outcome">
+                    {aggregate.consensus!.kind === "outcomes" &&
+                      (quiz.definition.outcomes!.find(
+                        (o) => o.id === (aggregate.consensus as { winnerId: string }).winnerId,
+                      )?.label ??
+                        "")}
+                  </div>
+                  <p className="hero-sub">
+                    Points summed across {n} answer{n === 1 ? "" : "s"} — every answer votes,
+                    the biggest pile wins.
+                  </p>
+                  <OutcomeBars
+                    outcomes={quiz.definition.outcomes!}
+                    totals={aggregate.outcomeTotals}
+                    winnerId={
+                      aggregate.consensus!.kind === "outcomes"
+                        ? aggregate.consensus!.winnerId
+                        : undefined
+                    }
+                  />
+                </>
+              )}
             </section>
 
             <section className="block">
               <h3>Individual verdicts</h3>
-              {aggregate.typeTally.map((t) => (
-                <div className="tally-row" key={t.type}>
-                  <span className="tally-type mono">{t.type}</span>
+              {aggregate.verdictTally.map((t) => (
+                <div className="tally-row" key={t.label}>
+                  <span className={`tally-type${aggregate.kind === "dimensions" ? " mono" : ""}`}>
+                    {t.label}
+                  </span>
                   <div className="tally-track">
                     <div
                       className="tally-fill"
-                      style={{ width: `${(t.count / maxTally) * 100}%` }}
+                      style={{
+                        width: `${(t.count / (aggregate.verdictTally[0]?.count ?? 1)) * 100}%`,
+                      }}
                     />
                   </div>
                   <span className="tally-count">{t.count}</span>
@@ -141,29 +196,29 @@ export function Dashboard() {
             </section>
           </div>
 
-          {n >= 2 && (
+          {n >= 2 && highlightCount > 0 && (
             <div className="card">
               <section>
                 <h3 className="small muted" style={{ margin: 0 }}>
-                  WHERE FRIENDS AGREE ABOUT {round.subjectName.toUpperCase()}
+                  WHERE FRIENDS AGREE ABOUT {subjectName.toUpperCase()}
                 </h3>
                 {mostAgreed.map((qa) => (
-                  <QuestionRow
+                  <QuestionBreakdown
                     key={qa.questionId}
                     question={findQuestion(quiz.definition, qa.questionId)}
-                    counts={qa.counts}
-                    maxCount={Math.max(...qa.counts)}
+                    qa={qa}
+                    subjectName={subjectName}
                   />
                 ))}
               </section>
               <section className="block">
                 <h3>Where they argue</h3>
                 {mostDivided.map((qa) => (
-                  <QuestionRow
+                  <QuestionBreakdown
                     key={qa.questionId}
                     question={findQuestion(quiz.definition, qa.questionId)}
-                    counts={qa.counts}
-                    maxCount={Math.max(...qa.counts)}
+                    qa={qa}
+                    subjectName={subjectName}
                   />
                 ))}
               </section>
@@ -173,15 +228,15 @@ export function Dashboard() {
           <div className="card">
             <details>
               <summary className="small" style={{ cursor: "pointer" }}>
-                Every question, every answer ({answeredQuestions.length} questions)
+                Every question, every answer ({aggregate.questions.length} questions)
               </summary>
               <div style={{ marginTop: 10 }}>
                 {aggregate.questions.map((qa) => (
-                  <QuestionRow
+                  <QuestionBreakdown
                     key={qa.questionId}
                     question={findQuestion(quiz.definition, qa.questionId)}
-                    counts={qa.counts}
-                    maxCount={Math.max(...qa.counts, 1)}
+                    qa={qa}
+                    subjectName={subjectName}
                   />
                 ))}
               </div>
@@ -198,7 +253,9 @@ export function Dashboard() {
                   <span className="who">
                     {s.respondentName ?? <span className="muted">anonymous</span>}
                   </span>
-                  <span className="verdict mono">{s.result.casedType}</span>
+                  <span className={`verdict${s.result.kind === "dimensions" ? " mono" : ""}`}>
+                    {verdictOf(s)}
+                  </span>
                   <span className="small muted">
                     {new Date(s.createdAt).toLocaleDateString()}
                   </span>

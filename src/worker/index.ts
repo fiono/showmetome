@@ -1,12 +1,14 @@
 import { Hono } from "hono";
 import { nanoid } from "nanoid";
 import { aggregateRound, scoreSubmission } from "../shared/scoring";
+import { parseQuizDefinition, normalizeResult } from "../shared/validate";
 import { TEMPLATES } from "../shared/templates/mbti";
 import type {
   Answers,
   CreateRoundResponse,
   OwnerView,
   QuizDefinition,
+  QuizInfo,
   ShareView,
   SubmissionResult,
   SubmissionView,
@@ -15,6 +17,7 @@ import type {
 
 const MAX_SUBMISSIONS_PER_ROUND = 200;
 const MAX_NAME_LENGTH = 60;
+const MAX_DEFINITION_BYTES = 100_000;
 
 type Env = { Bindings: { DB: D1Database } };
 
@@ -36,21 +39,87 @@ app.get("/templates", (c) => {
   return c.json(templates);
 });
 
+// --- quizzes ---
+
+interface QuizRow {
+  id: string;
+  title: string;
+  source: QuizInfo["source"];
+  definition: string;
+}
+
+function quizInfo(row: QuizRow, quiz: QuizDefinition): QuizInfo {
+  return {
+    id: row.id,
+    title: quiz.title,
+    description: quiz.description,
+    attribution: quiz.attribution,
+    source: row.source,
+    questionCount: quiz.questions.length,
+  };
+}
+
+app.post("/quizzes", async (c) => {
+  const body = await c.req.json<{ definition?: unknown }>().catch(() => null);
+  if (!body?.definition) return c.json({ error: "definition is required" }, 400);
+
+  let quiz: QuizDefinition;
+  try {
+    quiz = parseQuizDefinition(body.definition);
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : "invalid definition" }, 400);
+  }
+  const json = JSON.stringify(quiz);
+  if (json.length > MAX_DEFINITION_BYTES) return c.json({ error: "quiz is too large" }, 400);
+
+  const id = `quiz_${nanoid(14)}`;
+  await c.env.DB.prepare(
+    "INSERT INTO quizzes (id, title, source, definition, created_at) VALUES (?, ?, 'manual', ?, ?)",
+  )
+    .bind(id, quiz.title, json, Date.now())
+    .run();
+  return c.json(quizInfo({ id, title: quiz.title, source: "manual", definition: json }, quiz), 201);
+});
+
+app.get("/quizzes/:id", async (c) => {
+  const row = await c.env.DB.prepare(
+    "SELECT id, title, source, definition FROM quizzes WHERE id = ?",
+  )
+    .bind(c.req.param("id"))
+    .first<QuizRow>();
+  if (!row) return c.json({ error: "quiz not found" }, 404);
+  return c.json(quizInfo(row, parseQuizDefinition(JSON.parse(row.definition))));
+});
+
+// --- rounds ---
+
 app.post("/rounds", async (c) => {
-  const body = await c.req.json<{ templateId?: string; subjectName?: string }>().catch(() => null);
+  const body = await c.req
+    .json<{ templateId?: string; quizId?: string; subjectName?: string }>()
+    .catch(() => null);
   const subjectName = body?.subjectName?.trim();
   if (!subjectName || subjectName.length > MAX_NAME_LENGTH) {
     return c.json({ error: `subjectName is required (max ${MAX_NAME_LENGTH} chars)` }, 400);
   }
-  const template = TEMPLATES.find((t) => t.id === body?.templateId);
-  if (!template) return c.json({ error: "unknown templateId" }, 400);
 
   const now = Date.now();
-  await c.env.DB.prepare(
-    "INSERT OR IGNORE INTO quizzes (id, title, source, definition, created_at) VALUES (?, ?, 'template', ?, ?)",
-  )
-    .bind(template.id, template.quiz.title, JSON.stringify(template.quiz), now)
-    .run();
+  let quizId: string;
+  if (body?.quizId) {
+    const row = await c.env.DB.prepare("SELECT id FROM quizzes WHERE id = ?")
+      .bind(body.quizId)
+      .first<{ id: string }>();
+    if (!row) return c.json({ error: "unknown quizId" }, 400);
+    quizId = row.id;
+  } else {
+    const template = TEMPLATES.find((t) => t.id === body?.templateId);
+    if (!template) return c.json({ error: "unknown templateId or quizId" }, 400);
+    await c.env.DB.prepare(
+      "INSERT OR IGNORE INTO quizzes (id, title, source, definition, created_at) VALUES (?, ?, 'template', ?, ?)",
+    )
+      .bind(template.id, template.quiz.title, JSON.stringify(template.quiz), now)
+      .run();
+    quizId = template.id;
+  }
 
   const response: CreateRoundResponse = {
     roundId: nanoid(12),
@@ -61,7 +130,7 @@ app.post("/rounds", async (c) => {
   await c.env.DB.prepare(
     "INSERT INTO rounds (id, quiz_id, subject_name, owner_token, share_token, status, created_at) VALUES (?, ?, ?, ?, ?, 'open', ?)",
   )
-    .bind(response.roundId, template.id, subjectName, response.ownerToken, response.shareToken, now)
+    .bind(response.roundId, quizId, subjectName, response.ownerToken, response.shareToken, now)
     .run();
 
   return c.json(response, 201);
@@ -91,7 +160,8 @@ async function roundByToken(
     .bind(token)
     .first<RoundRow>();
   if (!row) return null;
-  return { row, quiz: JSON.parse(row.definition) as QuizDefinition };
+  // parseQuizDefinition also upgrades definitions stored in the M1 shape.
+  return { row, quiz: parseQuizDefinition(JSON.parse(row.definition)) };
 }
 
 app.get("/rounds/share/:shareToken", async (c) => {
@@ -177,7 +247,8 @@ app.get("/rounds/owner/:ownerToken", async (c) => {
     isSelf: s.is_self === 1,
     createdAt: s.created_at,
     answers: JSON.parse(s.answers),
-    result: JSON.parse(s.result),
+    // normalizeResult upgrades results stored by M1 (no `kind` field).
+    result: normalizeResult(JSON.parse(s.result)),
   }));
 
   const view: OwnerView = {

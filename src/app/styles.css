@@ -242,6 +242,46 @@ label {
   }
 }
 
+/* --- submit page: multiple choice --- */
+.choice {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--grid);
+}
+.choice:last-of-type {
+  border-bottom: none;
+}
+.choice-text {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.pair-answered .choice-text {
+  color: var(--ink-2);
+}
+.choice-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.choice-option {
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  color: var(--ink);
+  background: var(--surface-1);
+  border: 1.5px solid var(--baseline);
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.choice-option:hover {
+  border-color: var(--series-1);
+}
+.choice-option[aria-pressed="true"] {
+  background: var(--series-1-soft);
+  border-color: var(--series-1);
+}
+
 .progressbar {
   position: sticky;
   bottom: 0;
@@ -457,6 +497,124 @@ label {
     grid-area: hist;
     justify-content: center;
   }
+}
+
+/* --- outcome hero + choice breakdowns --- */
+.hero-outcome {
+  font-size: 40px;
+}
+.qrow-choice {
+  display: block;
+}
+.choice-prompt {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.choice-breakdown .opt-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 1fr 32px;
+  gap: 10px;
+  align-items: center;
+  margin: 4px 0;
+}
+.opt-text {
+  text-align: right;
+  color: var(--ink-2);
+}
+.opt-track {
+  height: 12px;
+  background: var(--page);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.opt-fill {
+  height: 100%;
+  background: var(--series-1);
+  border-radius: 4px;
+  min-width: 3px;
+}
+.opt-fill.zero {
+  background: transparent;
+  min-width: 0;
+}
+
+/* --- builder --- */
+select {
+  font: inherit;
+  font-size: 13px;
+  color: var(--ink);
+  background: var(--page);
+  border: 1px solid var(--baseline);
+  border-radius: 8px;
+  padding: 8px 10px;
+  max-width: 100%;
+}
+input[type="number"].weight {
+  font: inherit;
+  color: var(--ink);
+  background: var(--page);
+  border: 1px solid var(--baseline);
+  border-radius: 8px;
+  padding: 8px 10px;
+  width: 64px;
+}
+.mode-picker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+@media (max-width: 560px) {
+  .mode-picker {
+    grid-template-columns: 1fr;
+  }
+}
+.mode-option {
+  font: inherit;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--ink);
+  background: var(--surface-1);
+  border: 1.5px solid var(--baseline);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.mode-option[aria-pressed="true"] {
+  border-color: var(--series-1);
+  background: var(--series-1-soft);
+}
+.draft-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0;
+  flex-wrap: wrap;
+}
+.draft-row > input[type="text"] {
+  flex: 1;
+  min-width: 140px;
+}
+.draft-row .pole-letter {
+  flex: 0 0 56px;
+  min-width: 56px;
+  text-align: center;
+}
+.qdraft {
+  border: 1px solid var(--grid);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 10px 0;
+}
+.qdraft-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.qdraft > input[type="text"] {
+  margin-bottom: 4px;
 }
 
 /* --- respondent list --- */

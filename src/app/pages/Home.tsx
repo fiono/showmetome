@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import type { TemplateInfo } from "../../shared/types";
 
@@ -21,7 +21,7 @@ export function Home() {
     setBusy(true);
     setError(null);
     try {
-      const round = await api.createRound(template.id, subjectName.trim());
+      const round = await api.createRound({ templateId: template.id }, subjectName.trim());
       navigate(`/r/${round.ownerToken}?new=1`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -75,6 +75,15 @@ export function Home() {
           </>
         )}
         {!template && error && <p className="error">{error}</p>}
+      </div>
+
+      <div className="card">
+        <h2>Or build your own quiz</h2>
+        <p className="small">
+          Which kitchen appliance is your friend? What&rsquo;s their love language, according
+          to everyone but them? Multiple choice and 1&ndash;5 questions, scored toward
+          outcomes or axes. <Link to="/build">Open the builder &rarr;</Link>
+        </p>
       </div>
     </>
   );

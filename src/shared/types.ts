@@ -1,6 +1,19 @@
 // Canonical quiz format, shared between worker and app.
+//
+// Two scoring modes:
+//  - "dimensions": bipolar axes (MBTI-style). Every question pushes the
+//    subject along one or more axes; the result is a position per axis.
+//  - "weighted-outcomes": a set of outcomes ("which X are you"). Every
+//    answer adds points to outcomes; the highest total wins.
+//
+// Two question types, both usable in either mode:
+//  - "scale": two opposing statements with N positions between them; each
+//    side targets a pole (dimensions) or an outcome.
+//  - "choice": a prompt with options; each option scores points toward
+//    poles or outcomes.
 
-/** One end of a bipolar dimension, e.g. "E" or "I". */
+/** A score target: a pole letter in dimensions mode, an outcome id otherwise. */
+export type TargetId = string;
 export type Pole = string;
 
 export interface Dimension {
@@ -14,34 +27,53 @@ export interface Dimension {
   description?: string;
 }
 
-/**
- * A bipolar scale item: two opposing statements with `steps` positions
- * between them. Answer value 1 = fully the left statement, `steps` = fully
- * the right statement.
- */
+export interface Outcome {
+  id: string;
+  label: string; // e.g. "Autumn"
+  description?: string;
+}
+
 export interface ScaleQuestion {
   id: string;
   type: "scale";
-  dimension: string; // Dimension.id
-  left: { text: string; pole: Pole };
-  right: { text: string; pole: Pole };
-  steps: number; // odd, so there is a neutral middle (M1 always uses 5)
+  /** Optional grouping hint (legacy); scoring derives the axis from targets. */
+  dimension?: string;
+  left: { text: string; target: TargetId };
+  right: { text: string; target: TargetId };
+  steps: number; // odd, so there is a neutral middle (the builder uses 5)
 }
 
-export type Question = ScaleQuestion;
+export interface ChoiceOption {
+  id: string;
+  text: string;
+  /** target id -> weight (>= 0). Direction comes from which target is scored. */
+  scores: Record<TargetId, number>;
+}
+
+export interface ChoiceQuestion {
+  id: string;
+  type: "choice";
+  text: string;
+  options: ChoiceOption[];
+}
+
+export type Question = ScaleQuestion | ChoiceQuestion;
 
 export interface QuizDefinition {
   version: 1;
   title: string;
   description?: string;
   attribution?: string;
-  scoring: "dimensions";
-  dimensions: Dimension[];
+  scoring: "dimensions" | "weighted-outcomes";
+  /** Present when scoring === "dimensions" */
+  dimensions?: Dimension[];
+  /** Present when scoring === "weighted-outcomes" */
+  outcomes?: Outcome[];
   questions: Question[];
 }
 
-/** question id -> chosen scale value (1..steps) */
-export type Answers = Record<string, number>;
+/** question id -> scale value (1..steps) for scale, option id for choice */
+export type Answers = Record<string, number | string>;
 
 export type Bin = 1 | 2 | 3 | 4 | 5;
 
@@ -57,33 +89,53 @@ export interface AxisResult {
   strength: "clear" | "lean" | "slight";
 }
 
-export interface SubmissionResult {
+export interface DimensionsResult {
+  kind: "dimensions";
   axes: AxisResult[];
   /** Traditional 4-letter type, uppercase, e.g. "ISFP" */
   type: string;
-  /** Dynomight-style casing: uppercase = clear, lowercase = lean/slight, e.g. "ISfp" */
+  /** Dynomight-style casing: uppercase = clear, lowercase = lean/slight */
   casedType: string;
 }
 
+export interface OutcomesResult {
+  kind: "outcomes";
+  /** outcome id -> points (>= 0) */
+  scores: Record<string, number>;
+  /** Highest-scoring outcome; ties break by outcome order in the quiz */
+  winnerId: string;
+}
+
+export type SubmissionResult = DimensionsResult | OutcomesResult;
+
 export interface QuestionAggregate {
   questionId: string;
-  /** counts[i] = number of respondents who picked scale value i+1 */
-  counts: number[];
   total: number;
-  /** mean scale value (1..steps) */
-  mean: number;
-  /** population standard deviation of scale values; higher = more divided */
-  sd: number;
+  /** 0..1; 0 = everyone answered alike, 1 = maximally divided */
+  disagreement: number;
+  /** scale questions: counts[i] = respondents who picked value i+1 */
+  scale?: { counts: number[]; mean: number; sd: number };
+  /** choice questions: option id -> count */
+  choice?: { counts: Record<string, number> };
+}
+
+export interface OutcomeTotal {
+  id: string;
+  total: number;
+  /** total / sum of all outcome totals (0 when nothing scored) */
+  share: number;
 }
 
 export interface RoundAggregate {
   submissionCount: number;
-  /** Result computed from mean axis scores across all submissions */
+  kind: "dimensions" | "outcomes";
   consensus: SubmissionResult | null;
-  /** Per-dimension list of every submission's axis score (same order as submissions) */
+  /** dimensions mode: dimension id -> per-submission axis scores (submission order) */
   axisScores: Record<string, number[]>;
-  /** Tally of respondents' traditional types, descending */
-  typeTally: { type: string; count: number }[];
+  /** outcomes mode: summed points per outcome, descending */
+  outcomeTotals: OutcomeTotal[];
+  /** Tally of individual verdicts (4-letter type or winning outcome label), descending */
+  verdictTally: { label: string; count: number }[];
   questions: QuestionAggregate[];
 }
 
@@ -94,6 +146,15 @@ export interface TemplateInfo {
   title: string;
   description?: string;
   attribution?: string;
+  questionCount: number;
+}
+
+export interface QuizInfo {
+  id: string;
+  title: string;
+  description?: string;
+  attribution?: string;
+  source: "template" | "manual" | "ai_import";
   questionCount: number;
 }
 

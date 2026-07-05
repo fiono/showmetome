@@ -1,5 +1,19 @@
 import { useState } from "react";
-import type { Dimension, QuizDefinition, ScaleQuestion } from "../shared/types";
+import type {
+  ChoiceQuestion,
+  Dimension,
+  Outcome,
+  OutcomeTotal,
+  Question,
+  QuestionAggregate,
+  QuizDefinition,
+  ScaleQuestion,
+} from "../shared/types";
+
+/** Substitute the {name} placeholder quiz authors can use in question text. */
+export function subst(text: string, name: string): string {
+  return text.replaceAll("{name}", name);
+}
 
 /** Map an axis score (+1 = poles[0], left) to a % position across the track. */
 function scoreToPercent(score: number): number {
@@ -80,28 +94,103 @@ function AxisRowParts(props: {
   );
 }
 
-export function QuestionRow(props: {
-  question: ScaleQuestion;
-  counts: number[];
-  maxCount: number;
+/** Horizontal share bars for outcome scores (consensus or a single result). */
+export function OutcomeBars(props: {
+  outcomes: Outcome[];
+  totals: OutcomeTotal[];
+  winnerId?: string;
 }) {
-  const { question: q, counts } = props;
+  const max = Math.max(...props.totals.map((t) => t.total), 1);
+  const label = (id: string) => props.outcomes.find((o) => o.id === id)?.label ?? id;
+  return (
+    <div>
+      {props.totals.map((t) => (
+        <div className="tally-row" key={t.id}>
+          <span className={`tally-type${t.id === props.winnerId ? "" : " muted"}`}>
+            {label(t.id)}
+          </span>
+          <div className="tally-track">
+            <div className="tally-fill" style={{ width: `${(t.total / max) * 100}%` }} />
+          </div>
+          <span className="tally-count">{Math.round(t.share * 100)}%</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ScaleBreakdown(props: { question: ScaleQuestion; counts: number[]; subjectName: string }) {
+  const max = Math.max(...props.counts, 1);
   return (
     <div className="qrow">
-      <div className="lhs">{q.left.text}</div>
+      <div className="lhs">{subst(props.question.left.text, props.subjectName)}</div>
       <div className="mini-hist" aria-label="answer distribution">
-        {counts.map((count, i) => (
+        {props.counts.map((count, i) => (
           <div className="col" key={i} title={`${count} answer${count === 1 ? "" : "s"}`}>
             {count > 0 && <span className="count">{count}</span>}
             <div
               className={`bar${count === 0 ? " zero" : ""}`}
-              style={{ height: `${props.maxCount ? (count / props.maxCount) * 100 : 0}%` }}
+              style={{ height: `${(count / max) * 100}%` }}
             />
           </div>
         ))}
       </div>
-      <div className="rhs">{q.right.text}</div>
+      <div className="rhs">{subst(props.question.right.text, props.subjectName)}</div>
     </div>
+  );
+}
+
+function ChoiceBreakdown(props: {
+  question: ChoiceQuestion;
+  counts: Record<string, number>;
+  subjectName: string;
+}) {
+  const max = Math.max(...Object.values(props.counts), 1);
+  return (
+    <div className="qrow qrow-choice">
+      <div className="choice-prompt">{subst(props.question.text, props.subjectName)}</div>
+      <div className="choice-breakdown">
+        {props.question.options.map((o) => {
+          const count = props.counts[o.id] ?? 0;
+          return (
+            <div className="opt-row" key={o.id} title={`${count} answer${count === 1 ? "" : "s"}`}>
+              <span className="opt-text">{subst(o.text, props.subjectName)}</span>
+              <div className="opt-track">
+                <div
+                  className={`opt-fill${count === 0 ? " zero" : ""}`}
+                  style={{ width: `${(count / max) * 100}%` }}
+                />
+              </div>
+              <span className="tally-count">{count}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** Per-question answer distribution, for either question type. */
+export function QuestionBreakdown(props: {
+  question: Question;
+  qa: QuestionAggregate;
+  subjectName: string;
+}) {
+  if (props.question.type === "scale") {
+    return (
+      <ScaleBreakdown
+        question={props.question}
+        counts={props.qa.scale?.counts ?? []}
+        subjectName={props.subjectName}
+      />
+    );
+  }
+  return (
+    <ChoiceBreakdown
+      question={props.question}
+      counts={props.qa.choice?.counts ?? {}}
+      subjectName={props.subjectName}
+    />
   );
 }
 
@@ -122,6 +211,6 @@ export function CopyButton(props: { text: string; label?: string }) {
   );
 }
 
-export function findQuestion(quiz: QuizDefinition, id: string): ScaleQuestion {
+export function findQuestion(quiz: QuizDefinition, id: string): Question {
   return quiz.questions.find((q) => q.id === id)!;
 }
