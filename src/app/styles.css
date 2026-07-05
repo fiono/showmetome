@@ -617,6 +617,39 @@ input[type="number"].weight {
   margin-bottom: 4px;
 }
 
+.checkbox-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--ink);
+}
+.checkbox-row input[type="checkbox"] {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--series-1);
+}
+
+/* --- public quiz list --- */
+.quiz-link {
+  display: block;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--grid);
+  color: var(--ink);
+  text-decoration: none;
+}
+.quiz-link:last-child {
+  border-bottom: none;
+}
+.quiz-link:hover .quiz-link-title {
+  color: var(--series-1);
+}
+.quiz-link-title {
+  font-weight: 600;
+}
+
 /* --- respondent list --- */
 .respondent {
   display: flex;

@@ -156,6 +156,8 @@ export interface QuizInfo {
   attribution?: string;
   source: "template" | "manual" | "ai_import";
   questionCount: number;
+  /** Owner opted in to listing this quiz on the homepage. */
+  isPublic: boolean;
 }
 
 export interface CreateRoundResponse {

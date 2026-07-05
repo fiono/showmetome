@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../api";
-import { CopyButton } from "../components";
+import { CopyButton, subst } from "../components";
 import type { QuizInfo } from "../../shared/types";
 
 /** Home of a saved quiz: bookmarkable, starts new rounds of it. */
@@ -44,8 +44,8 @@ export function QuizStart() {
         </div>
       )}
       <div className="card">
-        <h2>{quiz.title}</h2>
-        {quiz.description && <p className="small">{quiz.description}</p>}
+        <h2>{subst(quiz.title, "your friend")}</h2>
+        {quiz.description && <p className="small">{subst(quiz.description, "your friend")}</p>}
         <p className="small muted">
           {quiz.questionCount} question{quiz.questionCount === 1 ? "" : "s"}
           {quiz.attribution ? <> &middot; {quiz.attribution}</> : null}

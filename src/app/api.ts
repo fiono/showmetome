@@ -44,13 +44,15 @@ export const api = {
       body: JSON.stringify({ ...from, subjectName }),
     }),
 
-  saveQuiz: (definition: QuizDefinition) =>
+  saveQuiz: (definition: QuizDefinition, isPublic: boolean) =>
     request<QuizInfo>("/api/quizzes", {
       method: "POST",
-      body: JSON.stringify({ definition }),
+      body: JSON.stringify({ definition, isPublic }),
     }),
 
   quizInfo: (quizId: string) => request<QuizInfo>(`/api/quizzes/${quizId}`),
+
+  publicQuizzes: () => request<QuizInfo[]>("/api/quizzes/public"),
 
   shareView: (shareToken: string) => request<ShareView>(`/api/rounds/share/${shareToken}`),
 

@@ -44,6 +44,7 @@ export function Builder() {
     { key: key(), label: "", description: "" },
   ]);
   const [questions, setQuestions] = useState<QuestionDraft[]>([]);
+  const [isPublic, setIsPublic] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -188,7 +189,7 @@ export function Builder() {
     }
     setBusy(true);
     try {
-      const info = await api.saveQuiz(definition);
+      const info = await api.saveQuiz(definition, isPublic);
       navigate(`/q/${info.id}?new=1`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -550,6 +551,23 @@ export function Builder() {
           </p>
         </div>
       )}
+
+      <div className="card">
+        <label className="checkbox-row">
+          <input
+            type="checkbox"
+            checked={isPublic}
+            onChange={(e) => setIsPublic(e.target.checked)}
+          />
+          <span>
+            <b>List this quiz publicly</b>
+            <span className="small" style={{ display: "block" }}>
+              It appears on the homepage, where anyone can start their own round of it.
+              Either way it gets a permalink you can share.
+            </span>
+          </span>
+        </label>
+      </div>
 
       <div className="row" style={{ justifyContent: "flex-end" }}>
         <button className="btn btn-primary" disabled={busy} onClick={save}>

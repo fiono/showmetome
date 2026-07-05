@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
-import type { TemplateInfo } from "../../shared/types";
+import { subst } from "../components";
+import type { QuizInfo, TemplateInfo } from "../../shared/types";
 
 export function Home() {
   const [templates, setTemplates] = useState<TemplateInfo[] | null>(null);
+  const [publicQuizzes, setPublicQuizzes] = useState<QuizInfo[]>([]);
   const [subjectName, setSubjectName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -12,6 +14,7 @@ export function Home() {
 
   useEffect(() => {
     api.templates().then(setTemplates, (e) => setError(String(e)));
+    api.publicQuizzes().then(setPublicQuizzes, () => {});
   }, []);
 
   const template = templates?.[0];
@@ -76,6 +79,27 @@ export function Home() {
         )}
         {!template && error && <p className="error">{error}</p>}
       </div>
+
+      {publicQuizzes.length > 0 && (
+        <div className="card">
+          <h2>Quizzes people have shared</h2>
+          <p className="small muted">
+            Built by other users, listed by their authors. Pick one to start your own round.
+          </p>
+          {publicQuizzes.map((q) => (
+            <Link key={q.id} to={`/q/${q.id}`} className="quiz-link">
+              <span className="quiz-link-title">{subst(q.title, "your friend")}</span>
+              {q.description && (
+                <span className="small muted"> {subst(q.description, "your friend")}</span>
+              )}
+              <span className="small muted">
+                {" "}
+                &middot; {q.questionCount} question{q.questionCount === 1 ? "" : "s"}
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
 
       <div className="card">
         <h2>Or build your own quiz</h2>

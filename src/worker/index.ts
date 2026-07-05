@@ -46,6 +46,7 @@ interface QuizRow {
   title: string;
   source: QuizInfo["source"];
   definition: string;
+  is_public: number;
 }
 
 function quizInfo(row: QuizRow, quiz: QuizDefinition): QuizInfo {
@@ -56,11 +57,14 @@ function quizInfo(row: QuizRow, quiz: QuizDefinition): QuizInfo {
     attribution: quiz.attribution,
     source: row.source,
     questionCount: quiz.questions.length,
+    isPublic: row.is_public === 1,
   };
 }
 
 app.post("/quizzes", async (c) => {
-  const body = await c.req.json<{ definition?: unknown }>().catch(() => null);
+  const body = await c.req
+    .json<{ definition?: unknown; isPublic?: boolean }>()
+    .catch(() => null);
   if (!body?.definition) return c.json({ error: "definition is required" }, 400);
 
   let quiz: QuizDefinition;
@@ -73,17 +77,29 @@ app.post("/quizzes", async (c) => {
   if (json.length > MAX_DEFINITION_BYTES) return c.json({ error: "quiz is too large" }, 400);
 
   const id = `quiz_${nanoid(14)}`;
+  const isPublic = body.isPublic === true ? 1 : 0;
   await c.env.DB.prepare(
-    "INSERT INTO quizzes (id, title, source, definition, created_at) VALUES (?, ?, 'manual', ?, ?)",
+    "INSERT INTO quizzes (id, title, source, definition, created_at, is_public) VALUES (?, ?, 'manual', ?, ?, ?)",
   )
-    .bind(id, quiz.title, json, Date.now())
+    .bind(id, quiz.title, json, Date.now(), isPublic)
     .run();
-  return c.json(quizInfo({ id, title: quiz.title, source: "manual", definition: json }, quiz), 201);
+  return c.json(
+    quizInfo({ id, title: quiz.title, source: "manual", definition: json, is_public: isPublic }, quiz),
+    201,
+  );
+});
+
+// Must be registered before /quizzes/:id or the :id route captures "public".
+app.get("/quizzes/public", async (c) => {
+  const { results } = await c.env.DB.prepare(
+    "SELECT id, title, source, definition, is_public FROM quizzes WHERE is_public = 1 ORDER BY created_at DESC LIMIT 50",
+  ).all<QuizRow>();
+  return c.json(results.map((row) => quizInfo(row, parseQuizDefinition(JSON.parse(row.definition)))));
 });
 
 app.get("/quizzes/:id", async (c) => {
   const row = await c.env.DB.prepare(
-    "SELECT id, title, source, definition FROM quizzes WHERE id = ?",
+    "SELECT id, title, source, definition, is_public FROM quizzes WHERE id = ?",
   )
     .bind(c.req.param("id"))
     .first<QuizRow>();

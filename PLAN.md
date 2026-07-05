@@ -258,9 +258,12 @@ copying.
 
 ## 7. Open questions (deferred, not blocking)
 
-- **Homepage gallery of popular quizzes** — quizzes persist, so surfacing
-  recent/popular ones on the home page is possible; deferred because a
-  public gallery needs moderation thought (anyone can author anything).
+- ~~**Homepage gallery of popular quizzes**~~ — shipped as owner-opt-in:
+  a "list this quiz publicly" checkbox in the builder puts the quiz on the
+  homepage (`/api/quizzes/public`, 50 most recent), where anyone can start
+  a round via its `/q/:quizId` permalink. Unlisted quizzes keep working via
+  their permalink; there is still no takedown tool beyond flipping
+  `is_public` in the database — revisit if strangers start using it.
 
 - **Results visibility for friends** — per-round setting; default = friend
   sees their own result only, not the group's, until the owner shares.
