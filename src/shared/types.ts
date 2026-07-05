@@ -168,6 +168,8 @@ export interface CreateRoundResponse {
 export interface ShareView {
   subjectName: string;
   status: "open" | "closed";
+  /** Id of the underlying quiz, so an answerer can start their own round of it. */
+  quizId: string;
   quiz: { title: string; description?: string; attribution?: string; definition: QuizDefinition };
 }
 

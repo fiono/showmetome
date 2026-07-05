@@ -170,6 +170,7 @@ app.get("/rounds/share/:shareToken", async (c) => {
   const view: ShareView = {
     subjectName: found.row.subject_name,
     status: found.row.status,
+    quizId: found.row.quiz_id,
     quiz: {
       title: found.quiz.title,
       description: found.quiz.description,

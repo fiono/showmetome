@@ -247,7 +247,20 @@ Each milestone ends deployed and usable.
   comparison; agreement/disagreement highlights; close round; submission cap
   + double-submit cookie; nicer share preview (OG tags on the share link).
 
+### The viral loop (shipped with M2)
+
+Anyone who receives a share link can answer anonymously (name field is
+optional), and the post-submit screen offers to mint them their own round
+of the same quiz — enter your name, get your own owner + share links.
+The share payload carries the quiz id to make this possible; quizzes are
+already persistent, so a quiz propagates from friend to friend with no
+copying.
+
 ## 7. Open questions (deferred, not blocking)
+
+- **Homepage gallery of popular quizzes** — quizzes persist, so surfacing
+  recent/popular ones on the home page is possible; deferred because a
+  public gallery needs moderation thought (anyone can author anything).
 
 - **Results visibility for friends** — per-round setting; default = friend
   sees their own result only, not the group's, until the owner shares.

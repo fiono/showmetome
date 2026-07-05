@@ -1,8 +1,62 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { AxisChart, OutcomeBars, subst } from "../components";
 import type { Answers, ShareView, SubmissionResult } from "../../shared/types";
+
+/** Post-submit viral loop: start your own round of the same quiz. */
+function YourTurn(props: { quizId: string; heading?: string }) {
+  const navigate = useNavigate();
+  const [myName, setMyName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function start() {
+    if (!myName.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const round = await api.createRound({ quizId: props.quizId }, myName.trim());
+      navigate(`/r/${round.ownerToken}?new=1`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <h2>{props.heading ?? "Your turn"}</h2>
+      <p className="small">
+        Get your own link for this quiz &mdash; send it to your friends and find out how{" "}
+        <em>they</em> see <em>you</em>.
+      </p>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          start();
+        }}
+      >
+        <div className="row">
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <input
+              type="text"
+              aria-label="Your name"
+              placeholder="Your name, as your friends know you"
+              value={myName}
+              maxLength={60}
+              onChange={(e) => setMyName(e.target.value)}
+            />
+          </div>
+          <button className="btn btn-primary" disabled={busy || !myName.trim()}>
+            {busy ? "Creating…" : "Get my link"}
+          </button>
+        </div>
+      </form>
+      {error && <p className="error">{error}</p>}
+    </div>
+  );
+}
 
 export function Submit() {
   const { shareToken } = useParams<{ shareToken: string }>();
@@ -48,6 +102,7 @@ export function Submit() {
 
   if (result) {
     return (
+      <>
       <div className="card">
         <h2>Your read on {name}</h2>
         {result.kind === "dimensions" ? (
@@ -82,21 +137,21 @@ export function Submit() {
           Your answers are saved &mdash; {name} will see them blended with everyone
           else&rsquo;s.
         </p>
-        <p className="small">
-          <Link to="/">Make your own round &rarr;</Link>
-        </p>
       </div>
+      <YourTurn quizId={view.quizId} heading={`Now find out what you are`} />
+      </>
     );
   }
 
   if (view.status !== "open") {
     return (
-      <div className="card">
-        <h2>This round is closed</h2>
-        <p className="small">
-          {name} isn&rsquo;t collecting answers any more. <Link to="/">Make your own?</Link>
-        </p>
-      </div>
+      <>
+        <div className="card">
+          <h2>This round is closed</h2>
+          <p className="small">{name} isn&rsquo;t collecting answers any more.</p>
+        </div>
+        <YourTurn quizId={view.quizId} heading="Take it for yourself instead" />
+      </>
     );
   }
 
@@ -113,7 +168,7 @@ export function Submit() {
         <input
           id="respondent"
           type="text"
-          placeholder="Optional, but be brave"
+          placeholder="Leave blank to answer anonymously"
           value={respondentName}
           maxLength={60}
           onChange={(e) => setRespondentName(e.target.value)}
