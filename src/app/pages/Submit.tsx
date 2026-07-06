@@ -181,15 +181,16 @@ export function Submit() {
   return (
     <>
       <div className="card">
-        <h2>How well do you know {name}?</h2>
-        <p className="small">
-          {name} wants to know how their friends see them &mdash; this is{" "}
-          <b>{subst(view.quiz.title, name)}</b>, answered <em>about {name}</em>. Pick whatever
-          sounds most like <b>{name}</b>. Go fast; first instincts are the good ones.
-        </p>
+        <h1 className="quiz-hero-title">{subst(view.quiz.title, name)}</h1>
         {view.quiz.description && (
-          <p className="small muted">{subst(view.quiz.description, name)}</p>
+          <p className="quiz-hero-desc">{subst(view.quiz.description, name)}</p>
         )}
+        <p className="small">
+          You&rsquo;re answering this <em>about {name}</em> &mdash; pick whatever sounds most
+          like <b>{name}</b>, and go fast; first instincts are the good ones. When the answers
+          come in, {name} sees the consensus, where their friends agreed, and where they
+          absolutely did not.
+        </p>
         <label htmlFor="respondent">Your name (so {name} knows who said what)</label>
         <input
           id="respondent"
