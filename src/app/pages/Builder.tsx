@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { parseQuizDefinition } from "../../shared/validate";
+import type { QuizDefinition } from "../../shared/types";
 
 let nextKey = 1;
 const key = () => `k${nextKey++}`;
@@ -16,23 +17,132 @@ interface DimDraft {
   labelB: string;
 }
 interface OutcomeDraft {
-  key: string;
+  key: string; // doubles as the outcome id in the saved definition
   label: string;
   description: string;
+}
+interface ScoreDraft {
+  key: string;
+  target: string;
+  weight: number;
 }
 interface OptionDraft {
   key: string;
   text: string;
-  target: string;
-  weight: number;
+  scores: ScoreDraft[];
 }
 type QuestionDraft =
-  | { key: string; type: "scale"; leftText: string; rightText: string; leftTarget: string }
-  | { key: string; type: "scale-outcomes"; leftText: string; rightText: string; leftTarget: string; rightTarget: string }
+  | { key: string; type: "scale"; leftText: string; rightText: string; leftTarget: string; steps: number }
+  | { key: string; type: "scale-outcomes"; leftText: string; rightText: string; leftScores: ScoreDraft[]; rightScores: ScoreDraft[]; steps: number }
   | { key: string; type: "choice"; text: string; options: OptionDraft[] };
+
+const freshScore = (): ScoreDraft => ({ key: key(), target: "", weight: 1 });
+
+/** Editable list of (target, weight) rows — used by choice options and scale sides. */
+function ScoreRows(props: {
+  scores: ScoreDraft[];
+  targets: { value: string; label: string }[];
+  onChange: (scores: ScoreDraft[]) => void;
+}) {
+  const { scores, targets, onChange } = props;
+  return (
+    <>
+      {scores.map((s, i) => (
+        <div className="draft-row draft-row-score" key={s.key}>
+          <select
+            value={s.target}
+            onChange={(e) =>
+              onChange(scores.map((x) => (x.key === s.key ? { ...x, target: e.target.value } : x)))
+            }
+          >
+            <option value="">scores toward…</option>
+            {targets.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </select>
+          <input
+            type="number"
+            className="weight"
+            min={0}
+            max={100}
+            value={s.weight}
+            title="points toward this target"
+            onChange={(e) =>
+              onChange(
+                scores.map((x) => (x.key === s.key ? { ...x, weight: Number(e.target.value) } : x)),
+              )
+            }
+          />
+          <button
+            className="btn btn-small btn-danger"
+            disabled={scores.length <= 1}
+            onClick={() => onChange(scores.filter((x) => x.key !== s.key))}
+          >
+            ✕
+          </button>
+          {i === scores.length - 1 && (
+            <button className="btn btn-small" onClick={() => onChange([...scores, freshScore()])}>
+              + another target
+            </button>
+          )}
+        </div>
+      ))}
+    </>
+  );
+}
+
+/** Turn an existing definition back into builder drafts (for cloning). */
+function draftsFromDefinition(def: QuizDefinition): {
+  mode: Mode;
+  dims: DimDraft[];
+  outcomes: OutcomeDraft[];
+  questions: QuestionDraft[];
+} {
+  const mode: Mode = def.scoring === "dimensions" ? "dimensions" : "outcomes";
+  const dims: DimDraft[] = (def.dimensions ?? []).map((d) => ({
+    key: key(),
+    a: d.poles[0],
+    b: d.poles[1],
+    labelA: d.labels[d.poles[0]] ?? "",
+    labelB: d.labels[d.poles[1]] ?? "",
+  }));
+  const outcomes: OutcomeDraft[] = (def.outcomes ?? []).map((o) => ({
+    key: o.id,
+    label: o.label,
+    description: o.description ?? "",
+  }));
+  const scoreRows = (scores: Record<string, number>): ScoreDraft[] =>
+    Object.entries(scores).map(([target, weight]) => ({ key: key(), target, weight }));
+  const questions: QuestionDraft[] = def.questions.map((q) => {
+    if (q.type === "choice") {
+      return {
+        key: key(),
+        type: "choice",
+        text: q.text,
+        options: q.options.map((o) => ({ key: key(), text: o.text, scores: scoreRows(o.scores) })),
+      };
+    }
+    const base = { key: key(), leftText: q.left.text, rightText: q.right.text, steps: q.steps };
+    // The dimensions-mode editor keeps the simple one-pole-per-side UX, so
+    // cloning keeps only the first target of each side there.
+    return mode === "dimensions"
+      ? { ...base, type: "scale", leftTarget: Object.keys(q.left.scores)[0] ?? "" }
+      : {
+          ...base,
+          type: "scale-outcomes",
+          leftScores: scoreRows(q.left.scores),
+          rightScores: scoreRows(q.right.scores),
+        };
+  });
+  return { mode, dims, outcomes, questions };
+}
 
 export function Builder() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const cloneFrom = searchParams.get("from");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [mode, setMode] = useState<Mode>("outcomes");
@@ -45,8 +155,27 @@ export function Builder() {
   ]);
   const [questions, setQuestions] = useState<QuestionDraft[]>([]);
   const [isPublic, setIsPublic] = useState(false);
+  const [clonedTitle, setClonedTitle] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!cloneFrom) return;
+    api.quizInfo(cloneFrom).then(
+      (info) => {
+        if (!info.definition) return;
+        const drafts = draftsFromDefinition(info.definition);
+        setTitle(info.definition.title);
+        setDescription(info.definition.description ?? "");
+        setMode(drafts.mode);
+        if (drafts.dims.length > 0) setDims(drafts.dims);
+        if (drafts.outcomes.length > 0) setOutcomes(drafts.outcomes);
+        setQuestions(drafts.questions);
+        setClonedTitle(info.definition.title);
+      },
+      (e) => setError(`couldn't load quiz to clone: ${e.message ?? e}`),
+    );
+  }, [cloneFrom]);
 
   /** Every valid scoring target in the current draft, with display labels. */
   const targets = useMemo(() => {
@@ -86,12 +215,23 @@ export function Builder() {
     setQuestions((qs) =>
       qs.map((q) => {
         if (q.type === "choice") {
-          return { ...q, options: q.options.map((o) => ({ ...o, target: "" })) };
+          return {
+            ...q,
+            options: q.options.map((o) => ({
+              ...o,
+              scores: o.scores.map((s) => ({ ...s, target: "" })),
+            })),
+          };
         }
-        const base = { key: q.key, leftText: q.leftText, rightText: q.rightText };
+        const base = {
+          key: q.key,
+          leftText: q.leftText,
+          rightText: q.rightText,
+          steps: q.steps,
+        };
         return next === "dimensions"
           ? { ...base, type: "scale", leftTarget: "" }
-          : { ...base, type: "scale-outcomes", leftTarget: "", rightTarget: "" };
+          : { ...base, type: "scale-outcomes", leftScores: [freshScore()], rightScores: [freshScore()] };
       }),
     );
   }
@@ -100,35 +240,39 @@ export function Builder() {
     setQuestions((qs) => [
       ...qs,
       mode === "dimensions"
-        ? { key: key(), type: "scale", leftText: "", rightText: "", leftTarget: "" }
+        ? { key: key(), type: "scale", leftText: "", rightText: "", leftTarget: "", steps: 5 }
         : {
             key: key(),
             type: "scale-outcomes",
             leftText: "",
             rightText: "",
-            leftTarget: "",
-            rightTarget: "",
+            leftScores: [freshScore()],
+            rightScores: [freshScore()],
+            steps: 5,
           },
     ]);
   }
 
   function addChoice() {
+    const freshOption = (): OptionDraft => ({ key: key(), text: "", scores: [freshScore()] });
     setQuestions((qs) => [
       ...qs,
-      {
-        key: key(),
-        type: "choice",
-        text: "",
-        options: [
-          { key: key(), text: "", target: "", weight: 1 },
-          { key: key(), text: "", target: "", weight: 1 },
-        ],
-      },
+      { key: key(), type: "choice", text: "", options: [freshOption(), freshOption()] },
     ]);
   }
 
   function patchQuestion(k: string, patch: Partial<QuestionDraft>) {
     setQuestions((qs) => qs.map((q) => (q.key === k ? ({ ...q, ...patch } as QuestionDraft) : q)));
+  }
+
+  function patchOption(qKey: string, oKey: string, patch: Partial<OptionDraft>) {
+    setQuestions((qs) =>
+      qs.map((q) =>
+        q.key === qKey && q.type === "choice"
+          ? { ...q, options: q.options.map((o) => (o.key === oKey ? { ...o, ...patch } : o)) }
+          : q,
+      ),
+    );
   }
 
   function buildDefinition(): unknown {
@@ -154,6 +298,11 @@ export function Builder() {
           }),
       questions: questions.map((q, i) => {
         const id = `q${i + 1}`;
+        const merge = (rows: ScoreDraft[]) => {
+          const scores: Record<string, number> = {};
+          for (const s of rows) scores[s.target] = (scores[s.target] ?? 0) + s.weight;
+          return scores;
+        };
         if (q.type === "choice") {
           return {
             id,
@@ -162,17 +311,20 @@ export function Builder() {
             options: q.options.map((o, j) => ({
               id: String.fromCharCode(97 + j),
               text: o.text,
-              scores: { [o.target]: o.weight },
+              scores: merge(o.scores),
             })),
           };
         }
-        const rightTarget = q.type === "scale" ? partnerPole(q.leftTarget) : q.rightTarget;
+        const [leftScores, rightScores] =
+          q.type === "scale"
+            ? [{ [q.leftTarget]: 1 }, { [partnerPole(q.leftTarget)]: 1 }]
+            : [merge(q.leftScores), merge(q.rightScores)];
         return {
           id,
           type: "scale",
-          left: { text: q.leftText, target: q.leftTarget },
-          right: { text: q.rightText, target: rightTarget },
-          steps: 5,
+          left: { text: q.leftText, scores: leftScores },
+          right: { text: q.rightText, scores: rightScores },
+          steps: q.steps,
         };
       }),
     };
@@ -199,6 +351,12 @@ export function Builder() {
 
   return (
     <>
+      {clonedTitle && (
+        <div className="callout">
+          <b>Editing a copy of &ldquo;{clonedTitle}&rdquo;.</b> Saving creates a brand-new quiz
+          — the original and its rounds are untouched.
+        </div>
+      )}
       <div className="card">
         <h2>Build a quiz</h2>
         <p className="small">
@@ -405,63 +563,32 @@ export function Builder() {
                   onChange={(e) => patchQuestion(q.key, { text: e.target.value })}
                 />
                 {q.options.map((o) => (
-                  <div className="draft-row draft-row-opt" key={o.key}>
-                    <input
-                      type="text"
-                      placeholder="Option text"
-                      value={o.text}
-                      maxLength={300}
-                      onChange={(e) =>
-                        patchQuestion(q.key, {
-                          options: q.options.map((x) =>
-                            x.key === o.key ? { ...x, text: e.target.value } : x,
-                          ),
-                        })
-                      }
+                  <div className="opt-draft" key={o.key}>
+                    <div className="draft-row">
+                      <input
+                        type="text"
+                        placeholder="Option text"
+                        value={o.text}
+                        maxLength={300}
+                        onChange={(e) => patchOption(q.key, o.key, { text: e.target.value })}
+                      />
+                      <button
+                        className="btn btn-small btn-danger"
+                        disabled={q.options.length <= 2}
+                        onClick={() =>
+                          patchQuestion(q.key, {
+                            options: q.options.filter((x) => x.key !== o.key),
+                          })
+                        }
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <ScoreRows
+                      scores={o.scores}
+                      targets={targets}
+                      onChange={(scores) => patchOption(q.key, o.key, { scores })}
                     />
-                    <select
-                      value={o.target}
-                      onChange={(e) =>
-                        patchQuestion(q.key, {
-                          options: q.options.map((x) =>
-                            x.key === o.key ? { ...x, target: e.target.value } : x,
-                          ),
-                        })
-                      }
-                    >
-                      <option value="">scores toward…</option>
-                      {targets.map((t) => (
-                        <option key={t.value} value={t.value}>
-                          {t.label}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      className="weight"
-                      min={0}
-                      max={100}
-                      value={o.weight}
-                      title="points this option is worth"
-                      onChange={(e) =>
-                        patchQuestion(q.key, {
-                          options: q.options.map((x) =>
-                            x.key === o.key ? { ...x, weight: Number(e.target.value) } : x,
-                          ),
-                        })
-                      }
-                    />
-                    <button
-                      className="btn btn-small btn-danger"
-                      disabled={q.options.length <= 2}
-                      onClick={() =>
-                        patchQuestion(q.key, {
-                          options: q.options.filter((x) => x.key !== o.key),
-                        })
-                      }
-                    >
-                      ✕
-                    </button>
                   </div>
                 ))}
                 <button
@@ -469,7 +596,7 @@ export function Builder() {
                   disabled={q.options.length >= 8}
                   onClick={() =>
                     patchQuestion(q.key, {
-                      options: [...q.options, { key: key(), text: "", target: "", weight: 1 }],
+                      options: [...q.options, { key: key(), text: "", scores: [freshScore()] }],
                     })
                   }
                 >
@@ -495,20 +622,20 @@ export function Builder() {
                     onChange={(e) => patchQuestion(q.key, { rightText: e.target.value })}
                   />
                 </div>
-                <div className="draft-row draft-row-pair">
-                  <select
-                    value={q.leftTarget}
-                    onChange={(e) => patchQuestion(q.key, { leftTarget: e.target.value })}
-                  >
-                    <option value="">left side scores toward…</option>
-                    {targets.map((t) => (
-                      <option key={t.value} value={t.value}>
-                        {t.label}
-                      </option>
-                    ))}
-                  </select>
-                  <span className="small muted">&rarr;</span>
-                  {q.type === "scale" ? (
+                {q.type === "scale" ? (
+                  <div className="draft-row draft-row-pair">
+                    <select
+                      value={q.leftTarget}
+                      onChange={(e) => patchQuestion(q.key, { leftTarget: e.target.value })}
+                    >
+                      <option value="">left side scores toward…</option>
+                      {targets.map((t) => (
+                        <option key={t.value} value={t.value}>
+                          {t.label}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="small muted">&rarr;</span>
                     <span className="small">
                       right side scores{" "}
                       <b>
@@ -516,20 +643,27 @@ export function Builder() {
                           "the opposite pole"}
                       </b>
                     </span>
-                  ) : (
-                    <select
-                      value={q.rightTarget}
-                      onChange={(e) => patchQuestion(q.key, { rightTarget: e.target.value })}
-                    >
-                      <option value="">right side scores toward…</option>
-                      {targets.map((t) => (
-                        <option key={t.value} value={t.value}>
-                          {t.label}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="score-group">
+                      <span className="small muted">leaning left scores toward:</span>
+                      <ScoreRows
+                        scores={q.leftScores}
+                        targets={targets}
+                        onChange={(leftScores) => patchQuestion(q.key, { leftScores })}
+                      />
+                    </div>
+                    <div className="score-group">
+                      <span className="small muted">leaning right scores toward:</span>
+                      <ScoreRows
+                        scores={q.rightScores}
+                        targets={targets}
+                        onChange={(rightScores) => patchQuestion(q.key, { rightScores })}
+                      />
+                    </div>
+                  </>
+                )}
               </>
             )}
           </div>

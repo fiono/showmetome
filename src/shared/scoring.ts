@@ -61,19 +61,20 @@ export function scoreToBin(score: number): Bin {
 function axisScore(quiz: QuizDefinition, dimensionId: string, answers: Answers): number {
   const dim = quiz.dimensions!.find((d) => d.id === dimensionId)!;
   const [a, b] = dim.poles;
+  const net = (holder: { scores: Record<string, number> }) =>
+    (holder.scores[a] ?? 0) - (holder.scores[b] ?? 0);
   let points = 0;
   let maxPoints = 0;
   for (const q of quiz.questions) {
     if (q.type === "scale") {
-      if (q.left.target !== a && q.left.target !== b) continue;
-      const offset = scaleOffset(q, answers);
-      const toward = offset < 0 ? q.left.target : q.right.target;
-      points += toward === a ? Math.abs(offset) : -Math.abs(offset);
-      maxPoints += (q.steps - 1) / 2;
-    } else {
-      const net = (o: { scores: Record<string, number> }) => (o.scores[a] ?? 0) - (o.scores[b] ?? 0);
-      const qMax = Math.max(...q.options.map((o) => Math.abs(net(o))));
+      const qMax = Math.max(Math.abs(net(q.left)), Math.abs(net(q.right)));
       if (qMax === 0) continue; // question doesn't touch this axis
+      const offset = scaleOffset(q, answers);
+      points += Math.abs(offset) * net(offset < 0 ? q.left : q.right);
+      maxPoints += ((q.steps - 1) / 2) * qMax;
+    } else {
+      const qMax = Math.max(...q.options.map((o) => Math.abs(net(o))));
+      if (qMax === 0) continue;
       points += net(chosenOption(q, answers));
       maxPoints += qMax;
     }
@@ -129,8 +130,10 @@ export function scoreSubmission(quiz: QuizDefinition, answers: Answers): Submiss
     if (q.type === "scale") {
       const offset = scaleOffset(q, answers);
       if (offset === 0) continue;
-      const target = offset < 0 ? q.left.target : q.right.target;
-      scores[target] += Math.abs(offset);
+      const side = offset < 0 ? q.left : q.right;
+      for (const [target, weight] of Object.entries(side.scores)) {
+        scores[target] = (scores[target] ?? 0) + Math.abs(offset) * weight;
+      }
     } else {
       for (const [target, weight] of Object.entries(chosenOption(q, answers).scores)) {
         scores[target] = (scores[target] ?? 0) + weight;

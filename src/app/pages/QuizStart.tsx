@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { CopyButton, subst } from "../components";
 import type { QuizInfo } from "../../shared/types";
@@ -65,6 +65,9 @@ export function QuizStart() {
         <div className="linkbox">
           <code>{`${location.origin}/q/${quiz.id}`}</code>
           <CopyButton text={`${location.origin}/q/${quiz.id}`} />
+          <Link className="btn btn-small" to={`/build?from=${quiz.id}`} title="Open a copy of this quiz in the builder">
+            clone &amp; edit
+          </Link>
         </div>
         <form
           onSubmit={(e) => {

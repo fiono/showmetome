@@ -51,7 +51,6 @@ export function parseQuizDefinition(raw: unknown): QuizDefinition {
 
   // --- targets ---
   const targets = new Set<string>();
-  const targetDimension = new Map<string, string>(); // pole -> dimension id
   let dimensions: Dimension[] | undefined;
   let outcomes: QuizDefinition["outcomes"];
 
@@ -80,7 +79,6 @@ export function parseQuizDefinition(raw: unknown): QuizDefinition {
       for (const p of poles) {
         if (targets.has(p)) err(`pole ${p} is used by more than one dimension`);
         targets.add(p);
-        targetDimension.set(p, d.id);
         const label = d.labels?.[p];
         if (typeof label !== "string" || !label || label.length > LIMITS.label) {
           err(`dimension ${d.id} needs a label for pole ${p} (max ${LIMITS.label} chars)`);
@@ -165,23 +163,35 @@ export function parseQuizDefinition(raw: unknown): QuizDefinition {
     const sides = { left: { ...q.left }, right: { ...q.right } };
     for (const side of ["left", "right"] as const) {
       const s = sides[side];
-      // M1 back-compat: the target used to be named `pole`.
-      if (s.target === undefined && typeof s.pole === "string") s.target = s.pole;
+      // Back-compat: sides used to hold a single target (named `pole` in M1,
+      // `target` in M2); normalize to a weighted scores map.
+      if (!s.scores || typeof s.scores !== "object") {
+        const single = typeof s.target === "string" ? s.target : s.pole;
+        if (typeof single === "string") s.scores = { [single]: 1 };
+      }
       delete s.pole;
+      delete s.target;
       if (typeof s.text !== "string" || !s.text.trim() || s.text.length > LIMITS.statement) {
         err(`question ${id} ${side} side needs text (max ${LIMITS.statement} chars)`);
       }
-      if (typeof s.target !== "string" || !targets.has(s.target)) {
-        err(`question ${id} ${side} side targets an unknown ${scoring === "dimensions" ? "pole" : "outcome"}`);
+      const entries = s.scores && typeof s.scores === "object" ? Object.entries(s.scores) : [];
+      if (entries.length === 0) {
+        err(`question ${id} ${side} side must score at least one target`);
       }
-    }
-    if (sides.left.target === sides.right.target) {
-      err(`question ${id} sides must target different ${scoring === "dimensions" ? "poles" : "outcomes"}`);
-    } else if (
-      scoring === "dimensions" &&
-      targetDimension.get(sides.left.target) !== targetDimension.get(sides.right.target)
-    ) {
-      err(`question ${id} sides must target poles of the same dimension`);
+      let positive = false;
+      for (const [target, weight] of entries) {
+        if (!targets.has(target)) {
+          err(`question ${id} ${side} side scores unknown target ${target}`);
+        }
+        if (typeof weight !== "number" || !Number.isFinite(weight) || weight < 0 || weight > LIMITS.weight) {
+          err(`question ${id} ${side} side weight for ${target} must be 0..${LIMITS.weight}`);
+        } else if (weight > 0) {
+          positive = true;
+        }
+      }
+      if (entries.length > 0 && !positive) {
+        err(`question ${id} ${side} side must have a weight above zero`);
+      }
     }
     return {
       id,

@@ -256,6 +256,20 @@ The share payload carries the quiz id to make this possible; quizzes are
 already persistent, so a quiz propagates from friend to friend with no
 copying.
 
+### Cloning instead of editing
+
+Any quiz page offers **clone & edit** (`/build?from=<quizId>`), which loads
+the definition back into the builder; saving always creates a new quiz.
+In-place editing was considered and rejected for now: the `/q/` permalink
+is not a secret (it's the share/listing link, so it can't prove ownership),
+and mutating a definition would corrupt dashboards of live rounds that
+reference it. Real editing would need a quiz owner-token plus
+copy-on-write versioning — future work if cloning proves insufficient.
+
+Scale sides and choice options both score weighted **sets** of targets
+(`scores: {fire: 2, air: 1}`), so a 1–5 pair is as expressive as a choice
+option in either scoring mode.
+
 ## 7. Open questions (deferred, not blocking)
 
 - ~~**Homepage gallery of popular quizzes**~~ — shipped as owner-opt-in:

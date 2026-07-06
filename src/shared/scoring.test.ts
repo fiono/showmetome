@@ -10,7 +10,7 @@ function answersToward(targets: Record<string, string>): Answers {
   for (const q of MBTI_QUIZ.questions) {
     if (q.type !== "scale") continue;
     const target = targets[q.dimension!];
-    answers[q.id] = q.left.target === target ? 1 : q.steps;
+    answers[q.id] = q.left.scores[target] ? 1 : q.steps;
   }
   return answers;
 }
@@ -35,7 +35,8 @@ describe("MBTI template structure", () => {
       expect(items, d.id).toHaveLength(8);
       for (const q of items) {
         if (q.type !== "scale") continue;
-        expect(new Set([q.left.target, q.right.target])).toEqual(new Set(d.poles));
+        const sideTargets = [...Object.keys(q.left.scores), ...Object.keys(q.right.scores)];
+        expect(new Set(sideTargets)).toEqual(new Set(d.poles));
       }
     }
   });
@@ -79,8 +80,8 @@ describe("scoreSubmission (dimensions)", () => {
     }
     const tf = scale.filter((q) => q.dimension === "TF");
     const jp = scale.filter((q) => q.dimension === "JP");
-    for (const q of tf.slice(0, 2)) answers[q.id] = q.left.target === "F" ? 2 : 4;
-    for (const q of jp.slice(0, 6)) answers[q.id] = q.left.target === "P" ? 2 : 4;
+    for (const q of tf.slice(0, 2)) answers[q.id] = q.left.scores["F"] ? 2 : 4;
+    for (const q of jp.slice(0, 6)) answers[q.id] = q.left.scores["P"] ? 2 : 4;
 
     const result = dims(scoreSubmission(MBTI_QUIZ, answers));
     // TF: 2 of 16 points toward F -> 0.125 -> slight; JP: 6/16 -> 0.375 -> lean
@@ -181,6 +182,63 @@ describe("scoreSubmission (weighted-outcomes)", () => {
 
   it("rejects an answer that is not one of the option ids", () => {
     expect(() => scoreSubmission(COLOR_QUIZ, { c1: "z", c2: "a", s1: 3 })).toThrow(/option/);
+  });
+
+  it("scale sides can score multiple outcomes with weights", () => {
+    const quiz = parseQuizDefinition({
+      version: 1,
+      title: "Multi",
+      scoring: "weighted-outcomes",
+      outcomes: [
+        { id: "red", label: "Red" },
+        { id: "blue", label: "Blue" },
+        { id: "green", label: "Green" },
+      ],
+      questions: [
+        {
+          id: "s1",
+          type: "scale",
+          left: { text: "fiery", scores: { red: 2, green: 1 } },
+          right: { text: "chill", scores: { blue: 1 } },
+          steps: 5,
+        },
+      ],
+    });
+    // fully left: |offset| 2 times each weight
+    const left = scoreSubmission(quiz, { s1: 1 }) as OutcomesResult;
+    expect(left.scores).toEqual({ red: 4, blue: 0, green: 2 });
+    // one step right: blue gets 1
+    const right = scoreSubmission(quiz, { s1: 4 }) as OutcomesResult;
+    expect(right.scores).toEqual({ red: 0, blue: 1, green: 0 });
+  });
+});
+
+describe("multi-axis scale questions in dimensions mode", () => {
+  const quiz = parseQuizDefinition({
+    version: 1,
+    title: "Cross",
+    scoring: "dimensions",
+    dimensions: [
+      { id: "EI", poles: ["E", "I"], labels: { E: "Extrovert", I: "Introvert" } },
+      { id: "JP", poles: ["J", "P"], labels: { J: "Judging", P: "Perceiving" } },
+    ],
+    questions: [
+      {
+        id: "q1",
+        type: "scale",
+        // "out on the town" is both extroverted and spontaneous
+        left: { text: "out on the town", scores: { E: 1, P: 1 } },
+        right: { text: "night in, as planned", scores: { I: 1, J: 1 } },
+        steps: 5,
+      },
+    ],
+  });
+
+  it("one scale item can push two axes at once", () => {
+    const r = scoreSubmission(quiz, { q1: 1 }) as DimensionsResult;
+    expect(r.axes.find((a) => a.dimension === "EI")!.score).toBe(1);
+    expect(r.axes.find((a) => a.dimension === "JP")!.score).toBe(-1); // toward P
+    expect(r.type).toBe("EP");
   });
 });
 
@@ -295,7 +353,7 @@ describe("choice questions in dimensions mode", () => {
 // --- validator ---
 
 describe("parseQuizDefinition", () => {
-  it("normalizes the M1 legacy shape (scale sides named `pole`)", () => {
+  it("normalizes M1 (`pole`) and M2 (`target`) scale sides to scores maps", () => {
     const legacy = {
       version: 1,
       title: "Legacy",
@@ -307,7 +365,7 @@ describe("parseQuizDefinition", () => {
           type: "scale",
           dimension: "EI",
           left: { text: "talks", pole: "E" },
-          right: { text: "listens", pole: "I" },
+          right: { text: "listens", target: "I" },
           steps: 5,
         },
       ],
@@ -316,9 +374,10 @@ describe("parseQuizDefinition", () => {
     const q = parsed.questions[0];
     expect(q.type).toBe("scale");
     if (q.type === "scale") {
-      expect(q.left.target).toBe("E");
-      expect(q.right.target).toBe("I");
-      expect((q.left as Record<string, unknown>).pole).toBeUndefined();
+      expect(q.left.scores).toEqual({ E: 1 });
+      expect(q.right.scores).toEqual({ I: 1 });
+      expect((q.left as unknown as Record<string, unknown>).pole).toBeUndefined();
+      expect((q.right as unknown as Record<string, unknown>).target).toBeUndefined();
     }
   });
 
@@ -349,22 +408,22 @@ describe("parseQuizDefinition", () => {
       parseQuizDefinition({
         version: 1,
         title: "X",
-        scoring: "dimensions",
-        dimensions: [
-          { id: "AB", poles: ["A", "B"], labels: { A: "a", B: "b" } },
-          { id: "CD", poles: ["C", "D"], labels: { C: "c", D: "d" } },
+        scoring: "weighted-outcomes",
+        outcomes: [
+          { id: "a", label: "A" },
+          { id: "b", label: "B" },
         ],
         questions: [
           {
             id: "q1",
             type: "scale",
-            left: { text: "a-ish", target: "A" },
-            right: { text: "c-ish", target: "C" },
+            left: { text: "a-ish", scores: {} },
+            right: { text: "b-ish", scores: { b: 1 } },
             steps: 5,
           },
         ],
       }),
-    ).toThrow(/same dimension/);
+    ).toThrow(/left side must score at least one target/);
   });
 });
 

@@ -46,8 +46,8 @@ const questions: ScaleQuestion[] = ROWS.map(([dimension, leftPole, left, rightPo
   id: `q${i + 1}`,
   type: "scale",
   dimension,
-  left: { text: left, target: leftPole },
-  right: { text: right, target: rightPole },
+  left: { text: left, scores: { [leftPole]: 1 } },
+  right: { text: right, scores: { [rightPole]: 1 } },
   steps: 5,
 }));
 

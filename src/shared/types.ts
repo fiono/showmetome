@@ -33,13 +33,19 @@ export interface Outcome {
   description?: string;
 }
 
+export interface ScaleSide {
+  text: string;
+  /** target id -> weight (>= 0), scored in proportion to how far the answer leans this way. */
+  scores: Record<TargetId, number>;
+}
+
 export interface ScaleQuestion {
   id: string;
   type: "scale";
-  /** Optional grouping hint (legacy); scoring derives the axis from targets. */
+  /** Optional grouping hint (legacy); scoring derives axes from targets. */
   dimension?: string;
-  left: { text: string; target: TargetId };
-  right: { text: string; target: TargetId };
+  left: ScaleSide;
+  right: ScaleSide;
   steps: number; // odd, so there is a neutral middle (the builder uses 5)
 }
 
@@ -162,6 +168,8 @@ export interface QuizInfo {
   roundCount: number;
   /** Times anyone completed this quiz (submissions across all its rounds). */
   submissionCount: number;
+  /** Full definition; present on single-quiz fetches (for cloning), not listings. */
+  definition?: QuizDefinition;
 }
 
 export interface CreateRoundResponse {

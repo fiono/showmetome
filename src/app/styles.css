@@ -616,6 +616,25 @@ input[type="number"].weight {
 .qdraft > input[type="text"] {
   margin-bottom: 4px;
 }
+.opt-draft {
+  border-left: 2px solid var(--grid);
+  padding-left: 10px;
+  margin: 10px 0;
+}
+.opt-draft .draft-row,
+.score-group .draft-row {
+  margin: 4px 0;
+}
+.draft-row-score {
+  padding-left: 14px;
+}
+.score-group {
+  margin: 8px 0;
+}
+a.btn {
+  text-decoration: none;
+  display: inline-block;
+}
 
 .checkbox-row {
   display: flex;

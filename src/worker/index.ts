@@ -127,7 +127,9 @@ app.get("/quizzes/:id", async (c) => {
     .bind(c.req.param("id"))
     .first<QuizRow>();
   if (!row) return c.json({ error: "quiz not found" }, 404);
-  return c.json(quizInfo(row, parseQuizDefinition(JSON.parse(row.definition))));
+  const quiz = parseQuizDefinition(JSON.parse(row.definition));
+  // Include the definition so anyone can clone the quiz into the builder.
+  return c.json({ ...quizInfo(row, quiz), definition: quiz });
 });
 
 // --- rounds ---
