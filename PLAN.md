@@ -243,9 +243,17 @@ Each milestone ends deployed and usable.
 - **M3 — AI import.** URL fetch + text paste → LLM (Workers AI default,
   Anthropic-key optional) → schema-validated quiz JSON → opens in the
   builder for review → save. Handles the "arbitrary quizzes" promise.
-- **M4 — Perception gap + polish.** Self-take (`is_self`) and self-vs-friends
-  comparison; agreement/disagreement highlights; close round; submission cap
-  + double-submit cookie; nicer share preview (OG tags on the share link).
+- **M4 — Perception gap + polish. ✅ Mostly shipped.** Self-take
+  (`is_self`, owner-token authed, retake replaces, excluded from the
+  friends' consensus everywhere) with a self-vs-friends comparison on the
+  dashboard; friends get the same treatment — after submitting, they see
+  their read vs. the *other* respondents (anonymized aggregate only, no
+  names leak). Both views share one ComparisonView: you-diamond overlaid
+  on the group's axis dots (or you-vs-group outcome share bars), plus
+  "where you split" ranked by an answerDivergence metric with your pick
+  highlighted per question. Agreement highlights, close round, submission
+  cap, and OG share previews shipped earlier. Remaining: double-submit
+  cookie.
 
 ### Social link previews (Open Graph)
 

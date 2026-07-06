@@ -5,6 +5,7 @@ import type {
   ChoiceQuestion,
   DimensionsResult,
   OutcomesResult,
+  Question,
   QuestionAggregate,
   QuizDefinition,
   RoundAggregate,
@@ -264,4 +265,26 @@ function sortTally(tally: Map<string, number>): { label: string; count: number }
   return [...tally.entries()]
     .map(([label, count]) => ({ label, count }))
     .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
+/**
+ * How far one person's answer sits from a group's answers to the same
+ * question, 0 (dead center of the pack) .. 1 (maximally unlike them).
+ * The aggregate should be over the group WITHOUT this person's answer.
+ * Scale: distance from the group mean, normalized by the scale width.
+ * Choice: the share of the group that did NOT pick your option.
+ */
+export function answerDivergence(
+  question: Question,
+  answer: number | string,
+  qa: QuestionAggregate,
+): number {
+  if (qa.total === 0) return 0;
+  if (question.type === "scale" && qa.scale && typeof answer === "number") {
+    return Math.abs(answer - qa.scale.mean) / (question.steps - 1);
+  }
+  if (question.type === "choice" && qa.choice && typeof answer === "string") {
+    return 1 - (qa.choice.counts[answer] ?? 0) / qa.total;
+  }
+  return 0;
 }

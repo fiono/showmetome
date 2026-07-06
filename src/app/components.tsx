@@ -28,6 +28,8 @@ export function AxisChart(props: {
   scores: Record<string, number[]>;
   /** dimension id -> consensus score (marker), if any */
   consensus?: Record<string, number>;
+  /** dimension id -> the viewer's own score (diamond marker), if comparing */
+  you?: Record<string, number>;
   /** respondent names aligned with the scores arrays, for tooltips */
   names?: (string | null)[];
 }) {
@@ -43,6 +45,7 @@ export function AxisChart(props: {
             right={{ pole: b, label: dim.labels[b] }}
             scores={props.scores[dim.id] ?? []}
             consensus={props.consensus?.[dim.id]}
+            you={props.you?.[dim.id]}
             names={props.names}
           />
         );
@@ -57,6 +60,7 @@ function AxisRowParts(props: {
   right: { pole: string; label: string };
   scores: number[];
   consensus?: number;
+  you?: number;
   names?: (string | null)[];
 }) {
   return (
@@ -84,6 +88,13 @@ function AxisRowParts(props: {
             className="axis-consensus"
             style={{ left: `${scoreToPercent(props.consensus)}%` }}
             title={`consensus: ${props.consensus > 0 ? props.left.pole : props.right.pole} ${Math.abs(Math.round(props.consensus * 100))}%`}
+          />
+        )}
+        {props.you !== undefined && (
+          <div
+            className="axis-you"
+            style={{ left: `${scoreToPercent(props.you)}%` }}
+            title={`you: ${props.you > 0 ? props.left.pole : props.right.pole} ${Math.abs(Math.round(props.you * 100))}%`}
           />
         )}
       </div>
@@ -119,7 +130,13 @@ export function OutcomeBars(props: {
   );
 }
 
-function ScaleBreakdown(props: { question: ScaleQuestion; counts: number[]; subjectName: string }) {
+function ScaleBreakdown(props: {
+  question: ScaleQuestion;
+  counts: number[];
+  subjectName: string;
+  /** the viewer's own answer (1..steps) to mark against the group */
+  highlight?: number;
+}) {
   const max = Math.max(...props.counts, 1);
   return (
     <div className={`qrow${props.question.prompt ? " qrow-headed" : ""}`}>
@@ -128,15 +145,23 @@ function ScaleBreakdown(props: { question: ScaleQuestion; counts: number[]; subj
       )}
       <div className="lhs">{subst(props.question.left.text, props.subjectName)}</div>
       <div className="mini-hist" aria-label="answer distribution">
-        {props.counts.map((count, i) => (
-          <div className="col" key={i} title={`${count} answer${count === 1 ? "" : "s"}`}>
-            {count > 0 && <span className="count">{count}</span>}
+        {props.counts.map((count, i) => {
+          const isYou = props.highlight === i + 1;
+          return (
             <div
-              className={`bar${count === 0 ? " zero" : ""}`}
-              style={{ height: `${(count / max) * 100}%` }}
-            />
-          </div>
-        ))}
+              className={`col${isYou ? " col-you" : ""}`}
+              key={i}
+              title={`${count} answer${count === 1 ? "" : "s"}${isYou ? " — your pick" : ""}`}
+            >
+              {count > 0 && <span className="count">{count}</span>}
+              <div
+                className={`bar${count === 0 ? " zero" : ""}`}
+                style={{ height: `${(count / max) * 100}%` }}
+              />
+              {isYou && <span className="you-caret">▲</span>}
+            </div>
+          );
+        })}
       </div>
       <div className="rhs">{subst(props.question.right.text, props.subjectName)}</div>
     </div>
@@ -147,6 +172,8 @@ function ChoiceBreakdown(props: {
   question: ChoiceQuestion;
   counts: Record<string, number>;
   subjectName: string;
+  /** the viewer's own option id, marked against the group */
+  highlight?: string;
 }) {
   const max = Math.max(...Object.values(props.counts), 1);
   return (
@@ -155,9 +182,17 @@ function ChoiceBreakdown(props: {
       <div className="choice-breakdown">
         {props.question.options.map((o) => {
           const count = props.counts[o.id] ?? 0;
+          const isYou = props.highlight === o.id;
           return (
-            <div className="opt-row" key={o.id} title={`${count} answer${count === 1 ? "" : "s"}`}>
-              <span className="opt-text">{subst(o.text, props.subjectName)}</span>
+            <div
+              className="opt-row"
+              key={o.id}
+              title={`${count} answer${count === 1 ? "" : "s"}${isYou ? " — your pick" : ""}`}
+            >
+              <span className="opt-text">
+                {subst(o.text, props.subjectName)}
+                {isYou && <span className="you-tag">you</span>}
+              </span>
               <div className="opt-track">
                 <div
                   className={`opt-fill${count === 0 ? " zero" : ""}`}
@@ -178,6 +213,8 @@ export function QuestionBreakdown(props: {
   question: Question;
   qa: QuestionAggregate;
   subjectName: string;
+  /** the viewer's own answer, marked against the group */
+  highlight?: number | string;
 }) {
   if (props.question.type === "scale") {
     return (
@@ -185,6 +222,7 @@ export function QuestionBreakdown(props: {
         question={props.question}
         counts={props.qa.scale?.counts ?? []}
         subjectName={props.subjectName}
+        highlight={typeof props.highlight === "number" ? props.highlight : undefined}
       />
     );
   }
@@ -193,6 +231,7 @@ export function QuestionBreakdown(props: {
       question={props.question}
       counts={props.qa.choice?.counts ?? {}}
       subjectName={props.subjectName}
+      highlight={typeof props.highlight === "string" ? props.highlight : undefined}
     />
   );
 }

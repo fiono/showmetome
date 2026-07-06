@@ -10,6 +10,7 @@
   --border: rgba(11, 11, 11, 0.1);
   --series-1: #2a78d6;
   --series-1-soft: #cde2fb;
+  --series-2: #1baf7a; /* "you" in comparison views */
   --danger: #d03b3b;
 }
 @media (prefers-color-scheme: dark) {
@@ -24,6 +25,7 @@
     --border: rgba(255, 255, 255, 0.1);
     --series-1: #3987e5;
     --series-1-soft: #104281;
+    --series-2: #199e70;
     --danger: #e66767;
   }
 }
@@ -399,6 +401,16 @@ label {
   background: var(--ink);
   transform: translateX(-50%);
 }
+.axis-you {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  background: var(--series-2);
+  box-shadow: 0 0 0 2px var(--surface-1);
+  transform: translate(-50%, -50%) rotate(45deg); /* diamond: shape, not just color */
+  z-index: 1;
+}
 .legend {
   display: flex;
   gap: 18px;
@@ -422,6 +434,74 @@ label {
   background: var(--ink);
   margin-right: 5px;
   vertical-align: -2px;
+}
+.legend .swatch-you {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  background: var(--series-2);
+  transform: rotate(45deg);
+  margin-right: 6px;
+}
+
+/* --- comparison views: "you" highlights --- */
+.mini-hist .col-you .bar:not(.zero) {
+  background: var(--series-2);
+}
+.you-caret {
+  font-size: 9px;
+  color: var(--series-2);
+  font-weight: 700;
+  line-height: 1;
+  margin-top: 2px;
+}
+.you-tag {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--series-2);
+  border: 1.5px solid var(--series-2);
+  border-radius: 999px;
+  padding: 0 7px;
+  margin-left: 6px;
+  vertical-align: 1px;
+}
+
+/* grouped you-vs-group outcome bars */
+.cmp-row {
+  display: grid;
+  grid-template-columns: minmax(80px, auto) 1fr;
+  gap: 4px 12px;
+  align-items: center;
+  margin: 10px 0;
+}
+.cmp-label {
+  font-weight: 600;
+  font-size: 14px;
+  grid-row: span 2;
+  text-align: right;
+}
+.cmp-track {
+  display: grid;
+  grid-template-columns: 1fr 44px;
+  gap: 8px;
+  align-items: center;
+}
+.cmp-bar {
+  height: 10px;
+  border-radius: 4px;
+  min-width: 3px;
+}
+.cmp-bar.you {
+  background: var(--series-2);
+}
+.cmp-bar.group {
+  background: var(--series-1);
+}
+.cmp-pct {
+  font-size: 12px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
 }
 
 /* --- verdict spread (horizontal bars) --- */

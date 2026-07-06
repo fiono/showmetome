@@ -12,6 +12,7 @@ import type {
   ShareView,
   SubmissionResult,
   SubmissionView,
+  SubmitResponse,
   TemplateInfo,
 } from "../shared/types";
 
@@ -267,17 +268,25 @@ app.post("/rounds/share/:shareToken/submissions", async (c) => {
     )
     .run();
 
-  return c.json({ id, result }, 201);
+  // The rest of the group, so the friend can see how their read compares.
+  // Excludes the submission just made and any self-take by the subject.
+  const rest = (await fetchSubmissions(c.env.DB, found.row.id)).filter(
+    (s) => s.id !== id && !s.isSelf,
+  );
+  const response: SubmitResponse = {
+    id,
+    result,
+    others: rest.length > 0 ? { count: rest.length, aggregate: aggregateRound(found.quiz, rest) } : null,
+  };
+  return c.json(response, 201);
 });
 
-app.get("/rounds/owner/:ownerToken", async (c) => {
-  const found = await roundByToken(c.env.DB, "owner_token", c.req.param("ownerToken"));
-  if (!found) return c.json({ error: "round not found" }, 404);
-
-  const { results } = await c.env.DB.prepare(
-    "SELECT id, respondent_name, is_self, answers, result, created_at FROM submissions WHERE round_id = ? ORDER BY created_at ASC",
-  )
-    .bind(found.row.id)
+async function fetchSubmissions(db: D1Database, roundId: string): Promise<SubmissionView[]> {
+  const { results } = await db
+    .prepare(
+      "SELECT id, respondent_name, is_self, answers, result, created_at FROM submissions WHERE round_id = ? ORDER BY created_at ASC",
+    )
+    .bind(roundId)
     .all<{
       id: string;
       respondent_name: string | null;
@@ -286,8 +295,7 @@ app.get("/rounds/owner/:ownerToken", async (c) => {
       result: string;
       created_at: number;
     }>();
-
-  const submissions: SubmissionView[] = results.map((s) => ({
+  return results.map((s) => ({
     id: s.id,
     respondentName: s.respondent_name,
     isSelf: s.is_self === 1,
@@ -296,6 +304,15 @@ app.get("/rounds/owner/:ownerToken", async (c) => {
     // normalizeResult upgrades results stored by M1 (no `kind` field).
     result: normalizeResult(JSON.parse(s.result)),
   }));
+}
+
+app.get("/rounds/owner/:ownerToken", async (c) => {
+  const found = await roundByToken(c.env.DB, "owner_token", c.req.param("ownerToken"));
+  if (!found) return c.json({ error: "round not found" }, 404);
+
+  const all = await fetchSubmissions(c.env.DB, found.row.id);
+  const friends = all.filter((s) => !s.isSelf);
+  const self = all.filter((s) => s.isSelf).at(-1) ?? null;
 
   const view: OwnerView = {
     round: {
@@ -311,10 +328,48 @@ app.get("/rounds/owner/:ownerToken", async (c) => {
       attribution: found.quiz.attribution,
       definition: found.quiz,
     },
-    submissions,
-    aggregate: aggregateRound(found.quiz, submissions),
+    submissions: friends,
+    aggregate: aggregateRound(found.quiz, friends),
+    selfSubmission: self,
   };
   return c.json(view);
+});
+
+// The subject takes their own quiz (perception gap). Owner-token authed;
+// retaking replaces the previous self-take. Kept out of the friends'
+// aggregate everywhere.
+app.post("/rounds/owner/:ownerToken/self", async (c) => {
+  const found = await roundByToken(c.env.DB, "owner_token", c.req.param("ownerToken"));
+  if (!found) return c.json({ error: "round not found" }, 404);
+
+  const body = await c.req.json<{ answers?: Answers }>().catch(() => null);
+  if (!body?.answers) return c.json({ error: "answers are required" }, 400);
+
+  let result: SubmissionResult;
+  try {
+    result = scoreSubmission(found.quiz, body.answers);
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : "invalid answers" }, 400);
+  }
+
+  await c.env.DB.prepare("DELETE FROM submissions WHERE round_id = ? AND is_self = 1")
+    .bind(found.row.id)
+    .run();
+  const id = nanoid(12);
+  await c.env.DB.prepare(
+    "INSERT INTO submissions (id, round_id, respondent_name, is_self, answers, result, created_at) VALUES (?, ?, ?, 1, ?, ?, ?)",
+  )
+    .bind(
+      id,
+      found.row.id,
+      found.row.subject_name,
+      JSON.stringify(body.answers),
+      JSON.stringify(result),
+      Date.now(),
+    )
+    .run();
+
+  return c.json({ id, result }, 201);
 });
 
 app.patch("/rounds/owner/:ownerToken", async (c) => {

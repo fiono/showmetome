@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { aggregateRound, scoreSubmission, scoreToBin, validateAnswers } from "./scoring";
+import {
+  aggregateRound,
+  answerDivergence,
+  scoreSubmission,
+  scoreToBin,
+  validateAnswers,
+} from "./scoring";
 import { parseQuizDefinition, normalizeResult } from "./validate";
 import { MBTI_QUIZ } from "./templates/mbti";
 import type { Answers, DimensionsResult, OutcomesResult, QuizDefinition } from "./types";
@@ -455,6 +461,35 @@ describe("parseQuizDefinition", () => {
         ],
       }),
     ).toThrow(/left side must score at least one target/);
+  });
+});
+
+describe("answerDivergence", () => {
+  const sub = (answers: Answers) => ({ answers, result: scoreSubmission(COLOR_QUIZ, answers) });
+  // Group of three: c1 answers a,a,b; c2 all "a"; s1 values 1,1,3
+  const agg = aggregateRound(COLOR_QUIZ, [
+    sub({ c1: "a", c2: "a", s1: 1 }),
+    sub({ c1: "a", c2: "a", s1: 1 }),
+    sub({ c1: "b", c2: "a", s1: 3 }),
+  ]);
+  const q = (id: string) => COLOR_QUIZ.questions.find((x) => x.id === id)!;
+  const qa = (id: string) => agg.questions.find((x) => x.questionId === id)!;
+
+  it("choice: divergence is the share of the group that picked differently", () => {
+    expect(answerDivergence(q("c1"), "a", qa("c1"))).toBeCloseTo(1 / 3); // 2 of 3 agree
+    expect(answerDivergence(q("c1"), "d", qa("c1"))).toBe(1); // nobody picked d
+    expect(answerDivergence(q("c2"), "a", qa("c2"))).toBe(0); // unanimous with you
+  });
+
+  it("scale: divergence is normalized distance from the group mean", () => {
+    // s1 mean = (1+1+3)/3 = 5/3; steps 5 -> width 4
+    expect(answerDivergence(q("s1"), 5, qa("s1"))).toBeCloseTo((5 - 5 / 3) / 4);
+    expect(answerDivergence(q("s1"), 2, qa("s1"))).toBeCloseTo((2 - 5 / 3) / 4);
+  });
+
+  it("returns 0 when the group is empty", () => {
+    const empty = aggregateRound(COLOR_QUIZ, []);
+    expect(answerDivergence(q("c1"), "a", empty.questions[0])).toBe(0);
   });
 });
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import {
   AxisChart,
@@ -9,6 +9,7 @@ import {
   findQuestion,
   subst,
 } from "../components";
+import { ComparisonView } from "../Comparison";
 import type { OwnerView } from "../../shared/types";
 
 export function Dashboard() {
@@ -101,6 +102,9 @@ export function Dashboard() {
               reopen round
             </button>
           )}
+          <Link className="btn btn-small" to={`/r/${ownerToken}/self`}>
+            {view.selfSubmission ? "retake it yourself" : "take it yourself"}
+          </Link>
         </div>
       </div>
 
@@ -196,6 +200,35 @@ export function Dashboard() {
                 </div>
               ))}
             </section>
+          </div>
+
+          <div className="card" id="gap">
+            {view.selfSubmission ? (
+              <>
+                <h3 className="small muted" style={{ margin: "0 0 4px" }}>
+                  HOW YOU SEE YOURSELF VS. HOW THEY SEE YOU
+                </h3>
+                <ComparisonView
+                  quiz={quiz.definition}
+                  subjectName={subjectName}
+                  groupLabel="your friends"
+                  aggregate={aggregate}
+                  yourAnswers={view.selfSubmission.answers}
+                  yourResult={view.selfSubmission.result}
+                />
+              </>
+            ) : (
+              <>
+                <h3 className="small muted" style={{ margin: "0 0 4px" }}>
+                  THE OTHER HALF OF THE PICTURE
+                </h3>
+                <p className="small" style={{ margin: 0 }}>
+                  <Link to={`/r/${ownerToken}/self`}>Take the quiz yourself</Link> to see where
+                  your self-image and your friends&rsquo; read of you diverge — your answers
+                  stay out of their consensus.
+                </p>
+              </>
+            )}
           </div>
 
           {n >= 2 && highlightCount > 0 && (

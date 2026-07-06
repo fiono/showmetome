@@ -189,6 +189,14 @@ export interface ShareView {
   quiz: { title: string; description?: string; attribution?: string; definition: QuizDefinition };
 }
 
+/** Returned after a friend submits: their result plus the rest of the group to compare against. */
+export interface SubmitResponse {
+  id: string;
+  result: SubmissionResult;
+  /** Aggregate over the OTHER friends' submissions (excludes this one and any self-take); null when there are none yet. */
+  others: { count: number; aggregate: RoundAggregate } | null;
+}
+
 export interface SubmissionView {
   id: string;
   respondentName: string | null;
@@ -207,6 +215,10 @@ export interface OwnerView {
     shareToken: string;
   };
   quiz: { title: string; description?: string; attribution?: string; definition: QuizDefinition };
+  /** Friends' submissions only — the subject's self-take is kept separate. */
   submissions: SubmissionView[];
+  /** Aggregated over friends only, so the consensus is untainted by the self-take. */
   aggregate: RoundAggregate;
+  /** The subject's own take on the quiz, if they've done it (perception gap). */
+  selfSubmission: SubmissionView | null;
 }

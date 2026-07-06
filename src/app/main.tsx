@@ -6,6 +6,7 @@ import { Submit } from "./pages/Submit";
 import { Dashboard } from "./pages/Dashboard";
 import { Builder } from "./pages/Builder";
 import { QuizStart } from "./pages/QuizStart";
+import { SelfTake } from "./pages/SelfTake";
 import "./styles.css";
 
 function App() {
@@ -24,6 +25,7 @@ function App() {
           <Route path="/q/:quizId" element={<QuizStart />} />
           <Route path="/s/:shareToken" element={<Submit />} />
           <Route path="/r/:ownerToken" element={<Dashboard />} />
+          <Route path="/r/:ownerToken/self" element={<SelfTake />} />
           <Route path="*" element={<div className="card small">Nothing here.</div>} />
         </Routes>
         <footer className="site">

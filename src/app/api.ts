@@ -6,6 +6,7 @@ import type {
   QuizInfo,
   ShareView,
   SubmissionResult,
+  SubmitResponse,
   TemplateInfo,
 } from "../shared/types";
 
@@ -58,10 +59,16 @@ export const api = {
   shareView: (shareToken: string) => request<ShareView>(`/api/rounds/share/${shareToken}`),
 
   submit: (shareToken: string, respondentName: string, answers: Answers) =>
-    request<{ id: string; result: SubmissionResult }>(
-      `/api/rounds/share/${shareToken}/submissions`,
-      { method: "POST", body: JSON.stringify({ respondentName, answers }) },
-    ),
+    request<SubmitResponse>(`/api/rounds/share/${shareToken}/submissions`, {
+      method: "POST",
+      body: JSON.stringify({ respondentName, answers }),
+    }),
+
+  submitSelf: (ownerToken: string, answers: Answers) =>
+    request<{ id: string; result: SubmissionResult }>(`/api/rounds/owner/${ownerToken}/self`, {
+      method: "POST",
+      body: JSON.stringify({ answers }),
+    }),
 
   ownerView: (ownerToken: string) => request<OwnerView>(`/api/rounds/owner/${ownerToken}`),
 
