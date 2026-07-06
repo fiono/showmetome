@@ -166,6 +166,9 @@ export function Submit() {
           <b>{subst(view.quiz.title, name)}</b>, answered <em>about {name}</em>. Pick whatever
           sounds most like <b>{name}</b>. Go fast; first instincts are the good ones.
         </p>
+        {view.quiz.description && (
+          <p className="small muted">{subst(view.quiz.description, name)}</p>
+        )}
         <label htmlFor="respondent">Your name (so {name} knows who said what)</label>
         <input
           id="respondent"
