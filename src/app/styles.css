@@ -772,6 +772,17 @@ a.btn {
   accent-color: var(--series-1);
 }
 
+/* --- homepage featured quiz --- */
+.featured-quiz {
+  border: 1.5px solid var(--series-1);
+  background: var(--page);
+  border-radius: 10px;
+  padding: 16px;
+}
+.featured-quiz h2 {
+  font-size: 18px;
+}
+
 /* --- public quiz list --- */
 .quiz-link {
   display: block;

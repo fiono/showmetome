@@ -44,76 +44,80 @@ export function Home() {
       </div>
 
       <div className="card">
-        <h2>{template ? template.title : "Loading…"}</h2>
-        {template && (
-          <>
-            <p className="small">{template.description}</p>
-            <p className="small muted">
-              {template.questionCount} quick either/or questions &middot; {template.attribution}
-            </p>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                create();
-              }}
-            >
-              <label htmlFor="subject">Who is this about? (probably you)</label>
-              <div className="row">
-                <div style={{ flex: 1, minWidth: 200 }}>
-                  <input
-                    id="subject"
-                    type="text"
-                    placeholder="Your name, as your friends know you"
-                    value={subjectName}
-                    maxLength={60}
-                    onChange={(e) => setSubjectName(e.target.value)}
-                  />
+        <div className="featured-quiz">
+          <h2>{template ? template.title : "Loading…"}</h2>
+          {template && (
+            <>
+              <p className="small">{template.description}</p>
+              <p className="small muted">
+                {template.questionCount} quick either/or questions &middot;{" "}
+                {template.attribution}
+              </p>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  create();
+                }}
+              >
+                <label htmlFor="subject">Who is this about? (probably you)</label>
+                <div className="row">
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <input
+                      id="subject"
+                      type="text"
+                      placeholder="Your name, as your friends know you"
+                      value={subjectName}
+                      maxLength={60}
+                      onChange={(e) => setSubjectName(e.target.value)}
+                    />
+                  </div>
+                  <button className="btn btn-primary" disabled={busy || !subjectName.trim()}>
+                    {busy ? "Creating…" : "Create my round"}
+                  </button>
                 </div>
-                <button className="btn btn-primary" disabled={busy || !subjectName.trim()}>
-                  {busy ? "Creating…" : "Create my round"}
-                </button>
-              </div>
-            </form>
-            {error && <p className="error">{error}</p>}
-          </>
-        )}
-        {!template && error && <p className="error">{error}</p>}
-      </div>
-
-      {publicQuizzes.length > 0 && (
-        <div className="card">
-          <h2>Quizzes people have shared</h2>
-          <p className="small muted">
-            Built by other users, listed by their authors. Pick one to start your own round.
-          </p>
-          {publicQuizzes.map((q) => (
-            <Link key={q.id} to={`/q/${q.id}`} className="quiz-link">
-              <span className="quiz-link-title">{subst(q.title, "your friend")}</span>
-              {q.description && (
-                <span className="small muted"> {subst(q.description, "your friend")}</span>
-              )}
-              <span className="small muted">
-                {" "}
-                &middot; {q.questionCount} question{q.questionCount === 1 ? "" : "s"}
-                {q.submissionCount > 0 && (
-                  <>
-                    {" "}
-                    &middot; answered {q.submissionCount} time{q.submissionCount === 1 ? "" : "s"}
-                  </>
-                )}
-              </span>
-            </Link>
-          ))}
+              </form>
+              {error && <p className="error">{error}</p>}
+            </>
+          )}
+          {!template && error && <p className="error">{error}</p>}
         </div>
-      )}
+
+        {publicQuizzes.length > 0 && (
+          <section className="block">
+            <h3>More quizzes, from users</h3>
+            {publicQuizzes.map((q) => (
+              <Link key={q.id} to={`/q/${q.id}`} className="quiz-link">
+                <span className="quiz-link-title">{subst(q.title, "your friend")}</span>
+                {q.description && (
+                  <span className="small muted"> {subst(q.description, "your friend")}</span>
+                )}
+                <span className="small muted">
+                  {" "}
+                  &middot; {q.questionCount} question{q.questionCount === 1 ? "" : "s"}
+                  {q.submissionCount > 0 && (
+                    <>
+                      {" "}
+                      &middot; answered {q.submissionCount} time
+                      {q.submissionCount === 1 ? "" : "s"}
+                    </>
+                  )}
+                </span>
+              </Link>
+            ))}
+          </section>
+        )}
+      </div>
 
       <div className="card">
         <h2>Or build your own quiz</h2>
         <p className="small">
           Which kitchen appliance is your friend? What&rsquo;s their love language, according
           to everyone but them? Multiple choice and 1&ndash;5 questions, scored toward
-          outcomes or axes. <Link to="/build">Open the builder &rarr;</Link>
+          outcomes or axes.
         </p>
+        <Link className="btn btn-primary" to="/build">
+          Open the builder
+        </Link>
       </div>
     </>
   );
