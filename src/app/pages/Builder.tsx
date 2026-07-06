@@ -32,8 +32,8 @@ interface OptionDraft {
   scores: ScoreDraft[];
 }
 type QuestionDraft =
-  | { key: string; type: "scale"; leftText: string; rightText: string; leftTarget: string; steps: number }
-  | { key: string; type: "scale-outcomes"; leftText: string; rightText: string; leftScores: ScoreDraft[]; rightScores: ScoreDraft[]; steps: number }
+  | { key: string; type: "scale"; prompt: string; leftText: string; rightText: string; leftTarget: string; steps: number }
+  | { key: string; type: "scale-outcomes"; prompt: string; leftText: string; rightText: string; leftScores: ScoreDraft[]; rightScores: ScoreDraft[]; steps: number }
   | { key: string; type: "choice"; text: string; options: OptionDraft[] };
 
 const freshScore = (): ScoreDraft => ({ key: key(), target: "", weight: 1 });
@@ -124,7 +124,13 @@ function draftsFromDefinition(def: QuizDefinition): {
         options: q.options.map((o) => ({ key: key(), text: o.text, scores: scoreRows(o.scores) })),
       };
     }
-    const base = { key: key(), leftText: q.left.text, rightText: q.right.text, steps: q.steps };
+    const base = {
+      key: key(),
+      prompt: q.prompt ?? "",
+      leftText: q.left.text,
+      rightText: q.right.text,
+      steps: q.steps,
+    };
     // The dimensions-mode editor keeps the simple one-pole-per-side UX, so
     // cloning keeps only the first target of each side there.
     return mode === "dimensions"
@@ -225,6 +231,7 @@ export function Builder() {
         }
         const base = {
           key: q.key,
+          prompt: q.prompt,
           leftText: q.leftText,
           rightText: q.rightText,
           steps: q.steps,
@@ -240,10 +247,11 @@ export function Builder() {
     setQuestions((qs) => [
       ...qs,
       mode === "dimensions"
-        ? { key: key(), type: "scale", leftText: "", rightText: "", leftTarget: "", steps: 5 }
+        ? { key: key(), type: "scale", prompt: "", leftText: "", rightText: "", leftTarget: "", steps: 5 }
         : {
             key: key(),
             type: "scale-outcomes",
+            prompt: "",
             leftText: "",
             rightText: "",
             leftScores: [freshScore()],
@@ -263,6 +271,16 @@ export function Builder() {
 
   function patchQuestion(k: string, patch: Partial<QuestionDraft>) {
     setQuestions((qs) => qs.map((q) => (q.key === k ? ({ ...q, ...patch } as QuestionDraft) : q)));
+  }
+
+  function moveQuestion(index: number, delta: number) {
+    setQuestions((qs) => {
+      const to = index + delta;
+      if (to < 0 || to >= qs.length) return qs;
+      const next = [...qs];
+      [next[index], next[to]] = [next[to], next[index]];
+      return next;
+    });
   }
 
   function patchOption(qKey: string, oKey: string, patch: Partial<OptionDraft>) {
@@ -322,6 +340,7 @@ export function Builder() {
         return {
           id,
           type: "scale",
+          ...(q.prompt.trim() ? { prompt: q.prompt.trim() } : {}),
           left: { text: q.leftText, scores: leftScores },
           right: { text: q.rightText, scores: rightScores },
           steps: q.steps,
@@ -545,12 +564,32 @@ export function Builder() {
               <span className="small muted">
                 {i + 1}. {q.type === "choice" ? "multiple choice" : "1–5 pair"}
               </span>
-              <button
-                className="btn btn-small btn-danger"
-                onClick={() => setQuestions((qs) => qs.filter((x) => x.key !== q.key))}
-              >
-                remove
-              </button>
+              <div className="row" style={{ gap: 6 }}>
+                <button
+                  className="btn btn-small"
+                  disabled={i === 0}
+                  title="Move up"
+                  aria-label="Move question up"
+                  onClick={() => moveQuestion(i, -1)}
+                >
+                  ↑
+                </button>
+                <button
+                  className="btn btn-small"
+                  disabled={i === questions.length - 1}
+                  title="Move down"
+                  aria-label="Move question down"
+                  onClick={() => moveQuestion(i, 1)}
+                >
+                  ↓
+                </button>
+                <button
+                  className="btn btn-small btn-danger"
+                  onClick={() => setQuestions((qs) => qs.filter((x) => x.key !== q.key))}
+                >
+                  remove
+                </button>
+              </div>
             </div>
 
             {q.type === "choice" ? (
@@ -605,6 +644,13 @@ export function Builder() {
               </>
             ) : (
               <>
+                <input
+                  type="text"
+                  placeholder='Optional header — e.g. "How often does {name} make plans?"'
+                  value={q.prompt}
+                  maxLength={300}
+                  onChange={(e) => patchQuestion(q.key, { prompt: e.target.value })}
+                />
                 <div className="draft-row draft-row-pair">
                   <input
                     type="text"

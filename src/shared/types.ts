@@ -44,6 +44,8 @@ export interface ScaleQuestion {
   type: "scale";
   /** Optional grouping hint (legacy); scoring derives axes from targets. */
   dimension?: string;
+  /** Optional header shown above the pair, e.g. "Does {name} make plans?". */
+  prompt?: string;
   left: ScaleSide;
   right: ScaleSide;
   steps: number; // odd, so there is a neutral middle (the builder uses 5)

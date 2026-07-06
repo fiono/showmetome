@@ -203,6 +203,15 @@ label {
 .pair-answered .pair-right {
   color: var(--ink-2);
 }
+.pair-header {
+  grid-column: 1 / -1;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+.pair-answered .pair-header {
+  color: var(--ink-2);
+}
 .scale {
   display: flex;
   gap: 6px;
@@ -227,6 +236,12 @@ label {
   .pair {
     grid-template-columns: 1fr 1fr;
     grid-template-areas: "left right" "scale scale";
+  }
+  .pair-headed {
+    grid-template-areas: "header header" "left right" "scale scale";
+  }
+  .pair-header {
+    grid-area: header;
   }
   .pair-left {
     grid-area: left;
@@ -442,6 +457,13 @@ label {
 .qrow:last-child {
   border-bottom: none;
 }
+.qrow-header {
+  grid-column: 1 / -1;
+  text-align: center;
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
 .qrow .lhs {
   text-align: right;
   color: var(--ink-2);
@@ -484,6 +506,12 @@ label {
   .qrow {
     grid-template-columns: 1fr 1fr;
     grid-template-areas: "left right" "hist hist";
+  }
+  .qrow-headed {
+    grid-template-areas: "header header" "left right" "hist hist";
+  }
+  .qrow-header {
+    grid-area: header;
   }
   .qrow .lhs {
     grid-area: left;

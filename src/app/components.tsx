@@ -122,7 +122,10 @@ export function OutcomeBars(props: {
 function ScaleBreakdown(props: { question: ScaleQuestion; counts: number[]; subjectName: string }) {
   const max = Math.max(...props.counts, 1);
   return (
-    <div className="qrow">
+    <div className={`qrow${props.question.prompt ? " qrow-headed" : ""}`}>
+      {props.question.prompt && (
+        <div className="qrow-header">{subst(props.question.prompt, props.subjectName)}</div>
+      )}
       <div className="lhs">{subst(props.question.left.text, props.subjectName)}</div>
       <div className="mini-hist" aria-label="answer distribution">
         {props.counts.map((count, i) => (

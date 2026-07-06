@@ -180,8 +180,9 @@ export function Submit() {
           q.type === "scale" ? (
             <div
               key={q.id}
-              className={`pair${answers[q.id] !== undefined ? " pair-answered" : ""}`}
+              className={`pair${q.prompt ? " pair-headed" : ""}${answers[q.id] !== undefined ? " pair-answered" : ""}`}
             >
+              {q.prompt && <div className="pair-header">{subst(q.prompt, name)}</div>}
               <div className="pair-left">{subst(q.left.text, name)}</div>
               <div
                 className="scale"

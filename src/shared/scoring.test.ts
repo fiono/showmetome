@@ -381,6 +381,37 @@ describe("parseQuizDefinition", () => {
     }
   });
 
+  it("keeps an optional scale prompt and drops an empty one", () => {
+    const base = {
+      version: 1,
+      title: "Headers",
+      scoring: "dimensions",
+      dimensions: [{ id: "EI", poles: ["E", "I"], labels: { E: "Extrovert", I: "Introvert" } }],
+      questions: [
+        {
+          id: "q1",
+          type: "scale",
+          prompt: "  How often does {name} go out?  ",
+          left: { text: "never", scores: { I: 1 } },
+          right: { text: "always", scores: { E: 1 } },
+          steps: 5,
+        },
+        {
+          id: "q2",
+          type: "scale",
+          prompt: "   ",
+          left: { text: "quiet", scores: { I: 1 } },
+          right: { text: "loud", scores: { E: 1 } },
+          steps: 5,
+        },
+      ],
+    };
+    const parsed = parseQuizDefinition(base);
+    const [q1, q2] = parsed.questions;
+    if (q1.type === "scale") expect(q1.prompt).toBe("How often does {name} go out?");
+    if (q2.type === "scale") expect(q2.prompt).toBeUndefined();
+  });
+
   it("rejects broken definitions with useful messages", () => {
     expect(() => parseQuizDefinition({ version: 1, title: "X", scoring: "nope" })).toThrow(
       /scoring/,

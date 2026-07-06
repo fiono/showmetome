@@ -160,6 +160,11 @@ export function parseQuizDefinition(raw: unknown): QuizDefinition {
     if (!Number.isInteger(steps) || steps < 3 || steps > 9 || steps % 2 === 0) {
       err(`question ${id} steps must be an odd integer 3..9`);
     }
+    // Optional header; absent on all pre-existing quizzes.
+    const prompt = typeof q.prompt === "string" ? q.prompt.trim() : "";
+    if (prompt.length > LIMITS.statement) {
+      err(`question ${id} header must be at most ${LIMITS.statement} chars`);
+    }
     const sides = { left: { ...q.left }, right: { ...q.right } };
     for (const side of ["left", "right"] as const) {
       const s = sides[side];
@@ -197,6 +202,7 @@ export function parseQuizDefinition(raw: unknown): QuizDefinition {
       id,
       type: "scale",
       ...(typeof q.dimension === "string" ? { dimension: q.dimension } : {}),
+      ...(prompt ? { prompt } : {}),
       left: sides.left,
       right: sides.right,
       steps,

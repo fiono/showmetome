@@ -268,7 +268,11 @@ copy-on-write versioning — future work if cloning proves insufficient.
 
 Scale sides and choice options both score weighted **sets** of targets
 (`scores: {fire: 2, air: 1}`), so a 1–5 pair is as expressive as a choice
-option in either scoring mode.
+option in either scoring mode. A 1–5 pair may also carry an optional
+`prompt` header ("How often does {name} make plans?") shown above the
+statements, so the two sides can read as scale endpoints ("Never" …
+"All the time"); it is additive and absent on every pre-existing quiz.
+The builder can reorder questions with up/down controls.
 
 ## 7. Open questions (deferred, not blocking)
 
