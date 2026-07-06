@@ -150,28 +150,30 @@ export function Dashboard() {
                   />
                 </>
               ) : (
-                <>
-                  <div className="hero-type hero-outcome">
-                    {aggregate.consensus!.kind === "outcomes" &&
-                      (quiz.definition.outcomes!.find(
-                        (o) => o.id === (aggregate.consensus as { winnerId: string }).winnerId,
-                      )?.label ??
-                        "")}
-                  </div>
-                  <p className="hero-sub">
-                    Points summed across {n} answer{n === 1 ? "" : "s"} — every answer votes,
-                    the biggest pile wins.
-                  </p>
-                  <OutcomeBars
-                    outcomes={quiz.definition.outcomes!}
-                    totals={aggregate.outcomeTotals}
-                    winnerId={
-                      aggregate.consensus!.kind === "outcomes"
-                        ? aggregate.consensus!.winnerId
-                        : undefined
-                    }
-                  />
-                </>
+                (() => {
+                  const winnerId =
+                    aggregate.consensus!.kind === "outcomes"
+                      ? aggregate.consensus!.winnerId
+                      : undefined;
+                  const winner = quiz.definition.outcomes!.find((o) => o.id === winnerId);
+                  return (
+                    <>
+                      <div className="hero-type hero-outcome">{winner?.label ?? ""}</div>
+                      {winner?.description && (
+                        <p className="hero-tagline">{subst(winner.description, subjectName)}</p>
+                      )}
+                      <p className="hero-sub">
+                        Points summed across {n} answer{n === 1 ? "" : "s"} — every answer votes,
+                        the biggest pile wins.
+                      </p>
+                      <OutcomeBars
+                        outcomes={quiz.definition.outcomes!}
+                        totals={aggregate.outcomeTotals}
+                        winnerId={winnerId}
+                      />
+                    </>
+                  );
+                })()
               )}
             </section>
 

@@ -340,6 +340,11 @@ label {
   font-size: 14px;
   margin-bottom: 18px;
 }
+.hero-tagline {
+  color: var(--ink);
+  font-size: 15px;
+  margin: 0 0 10px;
+}
 
 .axis-chart {
   display: grid;

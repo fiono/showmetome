@@ -123,8 +123,10 @@ export function Submit() {
               {quiz.outcomes!.find((o) => o.id === result.winnerId)?.label}
             </div>
             <p className="hero-sub">
-              {quiz.outcomes!.find((o) => o.id === result.winnerId)?.description ??
-                `That's your verdict on ${name}.`}
+              {(() => {
+                const desc = quiz.outcomes!.find((o) => o.id === result.winnerId)?.description;
+                return desc ? subst(desc, name) : `That's your verdict on ${name}.`;
+              })()}
             </p>
             <OutcomeBars
               outcomes={quiz.outcomes!}
