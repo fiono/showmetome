@@ -31,6 +31,11 @@ No accounts: creating a round mints a private **owner link** (`/r/<token>`,
 the results dashboard — save it, it's the only way back) and a public
 **share link** (`/s/<token>`) that friends open to answer.
 
+Share and quiz links (`/s/*`, `/q/*`) are served by the Worker, which
+injects per-link Open Graph tags into the SPA shell so pasted links get
+rich previews (subject name + quiz description + `public/og-image.png`) in
+WhatsApp, iMessage, Slack, etc.
+
 ## Develop
 
 ```sh

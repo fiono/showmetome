@@ -19,7 +19,11 @@ const MAX_SUBMISSIONS_PER_ROUND = 200;
 const MAX_NAME_LENGTH = 60;
 const MAX_DEFINITION_BYTES = 100_000;
 
-type Env = { Bindings: { DB: D1Database } };
+interface WorkerEnv {
+  DB: D1Database;
+  ASSETS: Fetcher;
+}
+type Env = { Bindings: WorkerEnv };
 
 const app = new Hono<Env>().basePath("/api");
 
@@ -338,4 +342,115 @@ app.delete("/rounds/owner/:ownerToken/submissions/:id", async (c) => {
   return c.json({ deleted: true });
 });
 
-export default app;
+// --- Social link previews (Open Graph) ---
+//
+// The app is a client-rendered SPA, so crawlers (WhatsApp, iMessage, Slack,
+// Twitter…) that don't run JS would otherwise only see the generic index.html
+// meta tags. For share and quiz links we inject per-link OG tags into the
+// SPA shell so the preview names the subject and describes the quiz.
+
+const substName = (text: string, name: string) => text.replaceAll("{name}", name);
+
+function escapeAttr(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+interface LinkMeta {
+  pageTitle: string;
+  description: string;
+  image: string;
+  url: string;
+}
+
+async function shareMeta(db: D1Database, token: string, origin: string): Promise<LinkMeta | null> {
+  const found = await roundByToken(db, "share_token", token);
+  if (!found) return null;
+  const subject = found.row.subject_name;
+  const quizTitle = substName(found.quiz.title, subject);
+  const description = found.quiz.description
+    ? substName(found.quiz.description, subject)
+    : `${subject}'s friends are saying how they really see ${subject}. Answer "${quizTitle}" and add your take.`;
+  return {
+    pageTitle: `How well do you know ${subject}?`,
+    description,
+    image: `${origin}/og-image.png`,
+    url: `${origin}/s/${token}`,
+  };
+}
+
+async function quizMeta(db: D1Database, id: string, origin: string): Promise<LinkMeta | null> {
+  const row = await db
+    .prepare("SELECT definition FROM quizzes WHERE id = ?")
+    .bind(id)
+    .first<{ definition: string }>();
+  if (!row) return null;
+  const quiz = parseQuizDefinition(JSON.parse(row.definition));
+  const title = substName(quiz.title, "your friend");
+  const description = quiz.description
+    ? substName(quiz.description, "your friend")
+    : `Start a round of "${title}" — your friends answer about you, and you see how they really see you.`;
+  return { pageTitle: title, description, image: `${origin}/og-image.png`, url: `${origin}/q/${id}` };
+}
+
+async function renderShellWithMeta(
+  request: Request,
+  env: WorkerEnv,
+  meta: LinkMeta | null,
+): Promise<Response> {
+  const shell = await env.ASSETS.fetch(new URL("/index.html", request.url));
+  if (!meta) return shell;
+
+  const tags =
+    `<meta property="og:title" content="${escapeAttr(meta.pageTitle)}">` +
+    `<meta property="og:description" content="${escapeAttr(meta.description)}">` +
+    `<meta property="og:type" content="website">` +
+    `<meta property="og:url" content="${escapeAttr(meta.url)}">` +
+    `<meta property="og:image" content="${escapeAttr(meta.image)}">` +
+    `<meta property="og:image:width" content="1200">` +
+    `<meta property="og:image:height" content="630">` +
+    `<meta name="twitter:card" content="summary_large_image">` +
+    `<meta name="twitter:title" content="${escapeAttr(meta.pageTitle)}">` +
+    `<meta name="twitter:description" content="${escapeAttr(meta.description)}">` +
+    `<meta name="twitter:image" content="${escapeAttr(meta.image)}">`;
+
+  return new HTMLRewriter()
+    .on("title", {
+      element(el) {
+        el.setInnerContent(meta.pageTitle);
+      },
+    })
+    .on("head", {
+      element(el) {
+        el.append(tags, { html: true });
+      },
+    })
+    .transform(shell);
+}
+
+export default {
+  async fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+
+    if (url.pathname.startsWith("/api/")) {
+      return app.fetch(request, env, ctx);
+    }
+
+    // Inject link-preview metadata for share and quiz permalinks.
+    if (request.method === "GET") {
+      const share = url.pathname.match(/^\/s\/([^/]+)\/?$/);
+      if (share) {
+        return renderShellWithMeta(request, env, await shareMeta(env.DB, share[1], url.origin));
+      }
+      const quiz = url.pathname.match(/^\/q\/([^/]+)\/?$/);
+      if (quiz) {
+        return renderShellWithMeta(request, env, await quizMeta(env.DB, quiz[1], url.origin));
+      }
+    }
+
+    return env.ASSETS.fetch(request);
+  },
+};

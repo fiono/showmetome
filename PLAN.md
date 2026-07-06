@@ -247,6 +247,17 @@ Each milestone ends deployed and usable.
   comparison; agreement/disagreement highlights; close round; submission cap
   + double-submit cookie; nicer share preview (OG tags on the share link).
 
+### Social link previews (Open Graph)
+
+Share (`/s/:token`) and quiz (`/q/:id`) links run the Worker first, which
+injects per-link Open Graph + Twitter Card tags into the SPA shell (via
+`HTMLRewriter`) so a pasted link in WhatsApp/iMessage/Slack previews with
+the subject's name ("How well do you know Fiona?"), the quiz description,
+and a branded `og:image`. Humans still get the full SPA — the tags are
+appended to the same `index.html` that boots React. The image is a static
+branded card in `public/og-image.png`; a per-subject generated image would
+need runtime PNG rendering (satori/resvg) and is deferred.
+
 ### The viral loop (shipped with M2)
 
 Anyone who receives a share link can answer anonymously (name field is
