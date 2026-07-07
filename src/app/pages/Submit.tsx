@@ -67,6 +67,7 @@ export function Submit() {
   const [busy, setBusy] = useState(false);
   const [respondentName, setRespondentName] = useState("");
   const [done, setDone] = useState<{ response: SubmitResponse; answers: Answers } | null>(null);
+  const [answerAgain, setAnswerAgain] = useState(false);
 
   useEffect(() => {
     if (!shareToken) return;
@@ -174,6 +175,25 @@ export function Submit() {
           <p className="small">{name} isn&rsquo;t collecting answers any more.</p>
         </div>
         <YourTurn quizId={view.quizId} heading="Take it for yourself instead" />
+      </>
+    );
+  }
+
+  if (view.alreadyAnswered && !answerAgain) {
+    return (
+      <>
+        <div className="card">
+          <h2>Looks like you already answered this one</h2>
+          <p className="small">
+            This browser has already sent {name} its read. Answering again adds a second
+            submission &mdash; it won&rsquo;t replace your first, and {name} can see and
+            delete duplicates.
+          </p>
+          <button className="btn" onClick={() => setAnswerAgain(true)}>
+            Answer again anyway
+          </button>
+        </div>
+        <YourTurn quizId={view.quizId} heading="Or find out what you are" />
       </>
     );
   }

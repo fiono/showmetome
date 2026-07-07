@@ -252,8 +252,11 @@ Each milestone ends deployed and usable.
   on the group's axis dots (or you-vs-group outcome share bars), plus
   "where you split" ranked by an answerDivergence metric with your pick
   highlighted per question. Agreement highlights, close round, submission
-  cap, and OG share previews shipped earlier. Remaining: double-submit
-  cookie.
+  cap, and OG share previews shipped earlier. The double-submit guard is a
+  soft one: submitting sets an HttpOnly per-round cookie, returning
+  visitors get a "you already answered" notice with an explicit
+  answer-again override (never a hard block — shared devices are
+  legitimate, and duplicates stay owner-deletable). **M4 complete.**
 
 ### Social link previews (Open Graph)
 

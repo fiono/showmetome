@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { getCookie, setCookie } from "hono/cookie";
 import { nanoid } from "nanoid";
 import { aggregateRound, scoreSubmission } from "../shared/scoring";
 import { parseQuizDefinition, normalizeResult } from "../shared/validate";
@@ -210,6 +211,9 @@ async function roundByToken(
   return { row, quiz: parseQuizDefinition(JSON.parse(row.definition)) };
 }
 
+/** Double-submit guard: one cookie per round, set after a successful submission. */
+const answeredCookie = (roundId: string) => `smtm_a_${roundId}`;
+
 app.get("/rounds/share/:shareToken", async (c) => {
   const found = await roundByToken(c.env.DB, "share_token", c.req.param("shareToken"));
   if (!found) return c.json({ error: "round not found" }, 404);
@@ -217,6 +221,7 @@ app.get("/rounds/share/:shareToken", async (c) => {
     subjectName: found.row.subject_name,
     status: found.row.status,
     quizId: found.row.quiz_id,
+    alreadyAnswered: getCookie(c, answeredCookie(found.row.id)) !== undefined,
     quiz: {
       title: found.quiz.title,
       description: found.quiz.description,
@@ -267,6 +272,16 @@ app.post("/rounds/share/:shareToken/submissions", async (c) => {
       Date.now(),
     )
     .run();
+
+  // Soft double-submit guard; the share view reports it so the UI can warn.
+  // Not a hard block: shared devices are legitimate, and dupes stay
+  // owner-deletable on the dashboard.
+  setCookie(c, answeredCookie(found.row.id), id, {
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
+    httpOnly: true,
+    sameSite: "Lax",
+  });
 
   // The rest of the group, so the friend can see how their read compares.
   // Excludes the submission just made and any self-take by the subject.

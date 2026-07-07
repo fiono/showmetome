@@ -186,6 +186,8 @@ export interface ShareView {
   status: "open" | "closed";
   /** Id of the underlying quiz, so an answerer can start their own round of it. */
   quizId: string;
+  /** This browser already submitted to this round (double-submit cookie). Soft signal only. */
+  alreadyAnswered: boolean;
   quiz: { title: string; description?: string; attribution?: string; definition: QuizDefinition };
 }
 
