@@ -11,6 +11,8 @@ export function QuizForm(props: {
   /** Question text renders {name} as this. */
   subjectName: string;
   submitLabel: string;
+  /** Disabled-button label while questions remain (default "Answer all to send"). */
+  incompleteLabel?: string;
   busy: boolean;
   error?: string | null;
   onSubmit: (answers: Answers) => void;
@@ -100,7 +102,11 @@ export function QuizForm(props: {
           disabled={!complete || props.busy}
           onClick={() => props.onSubmit(answers)}
         >
-          {props.busy ? "Sending…" : complete ? props.submitLabel : "Answer all to send"}
+          {props.busy
+            ? "Sending…"
+            : complete
+              ? props.submitLabel
+              : (props.incompleteLabel ?? "Answer all to send")}
         </button>
       </div>
     </>

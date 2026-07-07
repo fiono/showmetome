@@ -65,6 +65,13 @@ export function QuizStart() {
         <div className="linkbox">
           <code>{`${location.origin}/q/${quiz.id}`}</code>
           <CopyButton text={`${location.origin}/q/${quiz.id}`} />
+          <Link
+            className="btn btn-small"
+            to={`/q/${quiz.id}/preview${subjectName.trim() ? `?name=${encodeURIComponent(subjectName.trim())}` : ""}`}
+            title="See the quiz exactly as your friends will — nothing gets saved"
+          >
+            preview as a friend
+          </Link>
           <Link className="btn btn-small" to={`/build?from=${quiz.id}`} title="Open a copy of this quiz in the builder">
             clone &amp; edit
           </Link>

@@ -6,6 +6,7 @@ import { Submit } from "./pages/Submit";
 import { Dashboard } from "./pages/Dashboard";
 import { Builder } from "./pages/Builder";
 import { QuizStart } from "./pages/QuizStart";
+import { Preview } from "./pages/Preview";
 import { SelfTake } from "./pages/SelfTake";
 import "./styles.css";
 
@@ -23,6 +24,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/build" element={<Builder />} />
           <Route path="/q/:quizId" element={<QuizStart />} />
+          <Route path="/q/:quizId/preview" element={<Preview />} />
           <Route path="/s/:shareToken" element={<Submit />} />
           <Route path="/r/:ownerToken" element={<Dashboard />} />
           <Route path="/r/:ownerToken/self" element={<SelfTake />} />
