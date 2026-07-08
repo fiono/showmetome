@@ -772,6 +772,29 @@ a.btn {
   accent-color: var(--series-1);
 }
 
+/* --- live quiz preview frame on the quiz page --- */
+.preview-frame {
+  border: 1px dashed var(--baseline);
+  border-radius: 12px;
+  background: var(--page);
+  padding: 10px 10px 4px;
+  margin-top: 20px;
+}
+.preview-frame-label {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 6px 10px;
+}
+/* Inside the frame the sticky submit bar would fight the page scroll — pin it
+   to the frame instead. */
+.preview-frame .progressbar {
+  position: static;
+  margin: 0;
+  border-radius: 0 0 8px 8px;
+}
+
 /* --- quiz-taking page hero header --- */
 .quiz-hero-title {
   font-size: 30px;

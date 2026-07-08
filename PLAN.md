@@ -278,6 +278,17 @@ The share payload carries the quiz id to make this possible; quizzes are
 already persistent, so a quiz propagates from friend to friend with no
 copying.
 
+### Live preview on the quiz page
+
+Every quiz page embeds a **live preview** of the friend experience — the
+same header, questions, and (locally-scored) result a friend would see —
+in a framed panel that updates on every keystroke of the "who is it
+about?" field, so `{name}` substitutions render in real time. It reuses
+the shared `scoreSubmission`, so answering the preview shows a real result
+with nothing persisted; "Looks good — start a round" hands straight to the
+create-round action. (This replaced an earlier standalone `/q/:id/preview`
+route.)
+
 ### Cloning instead of editing
 
 Any quiz page offers **clone & edit** (`/build?from=<quizId>`), which loads

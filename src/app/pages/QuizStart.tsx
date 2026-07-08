@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { CopyButton, subst } from "../components";
+import { QuizPreview } from "../QuizPreview";
 import type { QuizInfo } from "../../shared/types";
 
 /** Home of a saved quiz: bookmarkable, starts new rounds of it. */
@@ -36,6 +37,8 @@ export function QuizStart() {
   if (error && !quiz) return <div className="card error">{error}</div>;
   if (!quiz) return <div className="card small">Loading…</div>;
 
+  const previewName = subjectName.trim() || "your friend";
+
   return (
     <>
       {isNew && (
@@ -65,13 +68,6 @@ export function QuizStart() {
         <div className="linkbox">
           <code>{`${location.origin}/q/${quiz.id}`}</code>
           <CopyButton text={`${location.origin}/q/${quiz.id}`} />
-          <Link
-            className="btn btn-small"
-            to={`/q/${quiz.id}/preview${subjectName.trim() ? `?name=${encodeURIComponent(subjectName.trim())}` : ""}`}
-            title="See the quiz exactly as your friends will — nothing gets saved"
-          >
-            preview as a friend
-          </Link>
           <Link className="btn btn-small" to={`/build?from=${quiz.id}`} title="Open a copy of this quiz in the builder">
             clone &amp; edit
           </Link>
@@ -101,6 +97,21 @@ export function QuizStart() {
         </form>
         {error && <p className="error">{error}</p>}
       </div>
+
+      {quiz.definition && (
+        <div className="preview-frame">
+          <div className="preview-frame-label">
+            Preview — what {previewName} will see, as you fill in the name above. Nothing here
+            is saved.
+          </div>
+          <QuizPreview
+            key={quiz.id}
+            quiz={quiz.definition}
+            name={previewName}
+            onUseIt={subjectName.trim() ? start : undefined}
+          />
+        </div>
+      )}
     </>
   );
 }
