@@ -1,10 +1,18 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import { AxisChart, OutcomeBars, subst } from "../components";
 import { ComparisonView } from "../Comparison";
+import { GroupBoard } from "../GroupBoard";
+import { GroupResults, type GroupEntry } from "../GroupResults";
 import { QuizForm } from "../QuizForm";
-import type { Answers, ShareView, SubmitResponse } from "../../shared/types";
+import type {
+  Answers,
+  GroupAnswers,
+  GroupSittingResponse,
+  ShareView,
+  SubmitResponse,
+} from "../../shared/types";
 
 /** Post-submit viral loop: start your own round of the same quiz. */
 function YourTurn(props: { quizId: string; heading?: string }) {
@@ -60,6 +68,97 @@ function YourTurn(props: { quizId: string; heading?: string }) {
   );
 }
 
+/** Group flow: sort the whole roster on the board, then see everyone's result. */
+function GroupSubmit(props: { shareToken: string; view: ShareView }) {
+  const { view } = props;
+  const subjects = view.subjects ?? [];
+  const quiz = view.quiz.definition;
+  const [respondentName, setRespondentName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<GroupSittingResponse | null>(null);
+
+  const colorOf = useMemo(() => {
+    const m: Record<string, number> = {};
+    subjects.forEach((s, i) => (m[s.id] = i));
+    return m;
+  }, [subjects]);
+
+  async function submit(answersBySubject: GroupAnswers) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.submitSitting(props.shareToken, respondentName, answersBySubject);
+      setDone(res);
+      window.scrollTo(0, 0);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (done) {
+    const entries: GroupEntry[] = subjects.map((subject) => ({
+      subject,
+      result: done.results[subject.id],
+    }));
+    return (
+      <>
+        <GroupResults quiz={quiz} entries={entries} colorOf={colorOf} groupTitle={view.subjectName} />
+        <YourTurn quizId={view.quizId} heading="Now find out what you are" />
+      </>
+    );
+  }
+
+  if (view.status !== "open") {
+    return (
+      <>
+        <div className="card">
+          <h2>This round is closed</h2>
+          <p className="small">This group isn&rsquo;t collecting answers any more.</p>
+        </div>
+        <YourTurn quizId={view.quizId} heading="Start your own instead" />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className="card">
+        <h1 className="quiz-hero-title">{subst(view.quiz.title, view.subjectName)}</h1>
+        {view.quiz.description && (
+          <p className="quiz-hero-desc">{subst(view.quiz.description, view.subjectName)}</p>
+        )}
+        <p className="small">
+          Sort <b>{view.subjectName}</b> ({subjects.length} people) &mdash; on each question,
+          place every friend into the answer that fits. <b>Tap a friend, then tap their
+          answer</b> (or drag them in). Use <em>&ldquo;+ everyone else&rdquo;</em> to drop the
+          rest into one answer. You only read each question once.
+        </p>
+        <label htmlFor="respondent">Your name (optional)</label>
+        <input
+          id="respondent"
+          type="text"
+          placeholder="Leave blank to stay anonymous"
+          value={respondentName}
+          maxLength={60}
+          onChange={(e) => setRespondentName(e.target.value)}
+        />
+      </div>
+
+      <GroupBoard
+        quiz={quiz}
+        subjects={subjects}
+        submitLabel="See everyone's results"
+        busy={busy}
+        error={error}
+        onSubmit={submit}
+      />
+    </>
+  );
+}
+
 export function Submit() {
   const { shareToken } = useParams<{ shareToken: string }>();
   const [view, setView] = useState<ShareView | null>(null);
@@ -91,6 +190,8 @@ export function Submit() {
 
   if (error && !view) return <div className="card error">{error}</div>;
   if (!view) return <div className="card small">Loading…</div>;
+
+  if (view.mode === "group") return <GroupSubmit shareToken={shareToken!} view={view} />;
 
   const quiz = view.quiz.definition;
   const name = view.subjectName;

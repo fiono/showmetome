@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateRound,
   answerDivergence,
+  scoreSitting,
   scoreSubmission,
   scoreToBin,
   validateAnswers,
@@ -188,6 +189,26 @@ describe("scoreSubmission (weighted-outcomes)", () => {
 
   it("rejects an answer that is not one of the option ids", () => {
     expect(() => scoreSubmission(COLOR_QUIZ, { c1: "z", c2: "a", s1: 3 })).toThrow(/option/);
+  });
+
+  it("scoreSitting scores each roster member independently", () => {
+    const results = scoreSitting(COLOR_QUIZ, {
+      alice: { c1: "a", c2: "b", s1: 5 }, // blue
+      bob: { c1: "c", c2: "a", s1: 1 }, // red
+    });
+    expect(Object.keys(results).sort()).toEqual(["alice", "bob"]);
+    expect((results.alice as OutcomesResult).winnerId).toBe("blue");
+    expect((results.alice as OutcomesResult).scores).toEqual({ red: 0, blue: 3, green: 2 });
+    expect((results.bob as OutcomesResult).winnerId).toBe("red");
+  });
+
+  it("scoreSitting throws if any member's answers are incomplete", () => {
+    expect(() =>
+      scoreSitting(COLOR_QUIZ, {
+        alice: { c1: "a", c2: "b", s1: 5 },
+        bob: { c1: "a" }, // missing c2, s1
+      }),
+    ).toThrow(/missing/);
   });
 
   it("scale sides can score multiple outcomes with weights", () => {

@@ -15,6 +15,44 @@ export function subst(text: string, name: string): string {
   return text.replaceAll("{name}", name);
 }
 
+/** Number of distinct friend-chip colors (see .friend-c0..7 in styles.css). */
+export const FRIEND_COLORS = 8;
+
+/**
+ * A named friend "pill" for group mode. The name carries identity; the color
+ * is a scanning aid (cycles past 8, which is fine). Renders as a button so it
+ * works for tap-to-assign; optional drag props enable drag as an enhancement.
+ */
+export function FriendChip(props: {
+  name: string;
+  colorIndex: number;
+  armed?: boolean;
+  onClick?: () => void;
+  title?: string;
+  draggable?: boolean;
+  onDragStart?: (e: React.DragEvent) => void;
+  onDragEnd?: (e: React.DragEvent) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`friend-chip friend-c${props.colorIndex % FRIEND_COLORS}${props.armed ? " armed" : ""}`}
+      aria-pressed={props.armed ? true : undefined}
+      title={props.title}
+      onClick={(e) => {
+        e.stopPropagation(); // chips inside a bin must not also trigger the bin
+        props.onClick?.();
+      }}
+      draggable={props.draggable}
+      onDragStart={props.onDragStart}
+      onDragEnd={props.onDragEnd}
+    >
+      <span className="friend-dot" aria-hidden="true" />
+      {props.name}
+    </button>
+  );
+}
+
 /** Map an axis score (+1 = poles[0], left) to a % position across the track. */
 function scoreToPercent(score: number): number {
   return 2 + (1 - (score + 1) / 2) * 96;

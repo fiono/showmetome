@@ -1,6 +1,8 @@
 import type {
   Answers,
   CreateRoundResponse,
+  GroupAnswers,
+  GroupSittingResponse,
   OwnerView,
   QuizDefinition,
   QuizInfo,
@@ -43,6 +45,26 @@ export const api = {
     request<CreateRoundResponse>("/api/rounds", {
       method: "POST",
       body: JSON.stringify({ ...from, subjectName }),
+    }),
+
+  createGroupRound: (
+    from: { templateId?: string; quizId?: string },
+    groupTitle: string,
+    subjects: string[],
+  ) =>
+    request<CreateRoundResponse>("/api/rounds", {
+      method: "POST",
+      body: JSON.stringify({ ...from, mode: "group", groupTitle, subjects }),
+    }),
+
+  submitSitting: (
+    shareToken: string,
+    respondentName: string,
+    answersBySubject: GroupAnswers,
+  ) =>
+    request<GroupSittingResponse>(`/api/rounds/share/${shareToken}/sitting`, {
+      method: "POST",
+      body: JSON.stringify({ respondentName, answersBySubject }),
     }),
 
   saveQuiz: (definition: QuizDefinition, isPublic: boolean) =>

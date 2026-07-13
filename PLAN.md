@@ -142,6 +142,29 @@ CREATE INDEX idx_rounds_owner ON rounds(owner_token);
 CREATE INDEX idx_rounds_share ON rounds(share_token);
 ```
 
+Group rounds (M5, migration `0004`) add this, additively:
+
+```sql
+ALTER TABLE rounds ADD COLUMN mode TEXT NOT NULL DEFAULT 'individual';
+-- 'individual' | 'group'. For a group round, rounds.subject_name holds the
+-- group title (e.g. "the crew"); the roster lives in `subjects`.
+CREATE TABLE subjects (
+  id        TEXT PRIMARY KEY,               -- nanoid
+  round_id  TEXT NOT NULL REFERENCES rounds(id),
+  name      TEXT NOT NULL,                  -- one roster member
+  position  INTEGER NOT NULL               -- roster order (drives chip color)
+);
+CREATE INDEX idx_subjects_round ON subjects(round_id);
+ALTER TABLE submissions ADD COLUMN subject_id TEXT;  -- NULL for individual
+ALTER TABLE submissions ADD COLUMN sitting_id TEXT;  -- groups one sitting's N rows
+CREATE INDEX idx_submissions_subject ON submissions(subject_id);
+```
+
+One group sitting writes N `submissions` rows (one per roster member,
+sharing a `sitting_id`), so each friend's consensus is just
+`aggregateRound` over their own rows — the entire aggregation/comparison
+machinery reused with no new math.
+
 Results are computed per submission at write time (stable even if a quiz is
 later edited) and aggregated across the round at read time.
 
@@ -257,6 +280,26 @@ Each milestone ends deployed and usable.
   visitors get a "you already answered" notice with an explicit
   answer-again override (never a hard block — shared devices are
   legitimate, and duplicates stay owner-deletable). **M4 complete.**
+- **M5 — Group rounds. ✅ Shipped.** A round is now either *individual*
+  (one subject, unchanged) or *group* (a fixed roster of 2–10 friends),
+  gated on a new `rounds.mode` column that defaults to `'individual'` so
+  every existing round is untouched. Group rounds draw from the same
+  quizzes; the organizer sorts the whole roster on a **board** — all
+  questions in one scroll, each its own mini-board where you read the
+  question once and assign every friend by tap-to-assign (tap a friend then
+  their answer, or tap an answer then the friends who fit), with pointer
+  drag as a desktop enhancement and a **"+ everyone else"** shortcut per
+  answer to kill the tedium of ~N×Q placements. One sitting expands to N
+  `submissions` rows sharing a `sitting_id`, each tagged with its
+  `subject_id`, so `scoreSubmission`/`aggregateRound` are reused per friend
+  with **zero new scoring math** — each friend's result is `aggregateRound`
+  over their own rows (a consensus once multiple people sort the same
+  roster). Results show a **group picture** (all friends on one `AxisChart`
+  for dimensions, or an outcome tally for weighted-outcomes) plus a
+  per-friend readout, both after a sitting and on the owner dashboard.
+  Because data is stored per-friend, *collaborative consensus* (several
+  people sort the same roster → per-friend perception gap) is a later add
+  with no schema change. Migration `0004_group_rounds.sql`.
 
 ### Social link previews (Open Graph)
 

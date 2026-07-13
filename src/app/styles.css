@@ -875,3 +875,180 @@ footer.site {
 footer.site a {
   color: inherit;
 }
+
+/* --- group mode: friend chips + sorting board --- */
+/* Categorical palette (from the dataviz reference). Names carry identity;
+   color is a scanning aid, so cycling past 8 is fine. */
+.friend-c0 {
+  --chip: #2a78d6;
+}
+.friend-c1 {
+  --chip: #1baf7a;
+}
+.friend-c2 {
+  --chip: #eda100;
+}
+.friend-c3 {
+  --chip: #008300;
+}
+.friend-c4 {
+  --chip: #4a3aa7;
+}
+.friend-c5 {
+  --chip: #e34948;
+}
+.friend-c6 {
+  --chip: #e87ba4;
+}
+.friend-c7 {
+  --chip: #eb6834;
+}
+
+.friend-chip {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  border: 1.5px solid var(--baseline);
+  border-radius: 999px;
+  background: var(--surface-1);
+  color: var(--ink);
+  cursor: pointer;
+  user-select: none;
+  touch-action: manipulation;
+}
+.friend-chip .friend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--chip, var(--muted));
+  flex: 0 0 auto;
+}
+.friend-chip.armed {
+  border-color: var(--chip, var(--series-1));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--chip, var(--series-1)) 28%, transparent);
+}
+.friend-chip[draggable="true"] {
+  cursor: grab;
+}
+
+.qboard-head {
+  margin-bottom: 4px;
+}
+.qboard-prompt {
+  margin: 2px 0 12px;
+  font-size: 16px;
+}
+.tray {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px;
+  margin-bottom: 12px;
+  border: 1px dashed var(--baseline);
+  border-radius: 10px;
+  background: var(--page);
+  min-height: 44px;
+  align-items: center;
+}
+.bins {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bin {
+  border: 1.5px solid var(--grid);
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.bin.armed {
+  border-color: var(--series-1);
+  background: var(--series-1-soft);
+}
+.bin-label {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.bin-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.bin-chips:empty {
+  display: none;
+}
+.bin-rest {
+  font: inherit;
+  font-size: 12px;
+  color: var(--series-1);
+  background: none;
+  border: none;
+  padding: 4px 0 0;
+  cursor: pointer;
+}
+.bin-rest:hover {
+  text-decoration: underline;
+}
+
+.progressbar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  margin: 0 -16px;
+  background: var(--surface-1);
+  border-top: 1px solid var(--border);
+}
+.progress-track {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--grid);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--series-1);
+  transition: width 0.15s ease;
+}
+
+/* group results */
+.friend-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--grid);
+}
+.friend-row:last-child {
+  border-bottom: none;
+}
+.friend-verdict {
+  font-weight: 600;
+}
+.tally-block {
+  margin: 10px 0 16px;
+}
+.tally-block .tally-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+@media (max-width: 560px) {
+  .progressbar {
+    flex-wrap: wrap;
+  }
+  .progressbar .btn {
+    width: 100%;
+  }
+}

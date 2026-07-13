@@ -4,12 +4,14 @@ import { api } from "../api";
 import {
   AxisChart,
   CopyButton,
+  FriendChip,
   OutcomeBars,
   QuestionBreakdown,
   findQuestion,
   subst,
 } from "../components";
 import { ComparisonView } from "../Comparison";
+import { GroupResults, type GroupEntry } from "../GroupResults";
 import type { OwnerView } from "../../shared/types";
 
 export function Dashboard() {
@@ -31,8 +33,25 @@ export function Dashboard() {
     [view],
   );
 
+  async function setStatus(status: "open" | "closed") {
+    await api.setStatus(ownerToken!, status);
+    load();
+  }
+
   if (error && !view) return <div className="card error">{error}</div>;
   if (!view || !ownerToken) return <div className="card small">Loading…</div>;
+
+  if (view.group) {
+    return (
+      <GroupDashboard
+        view={view}
+        ownerToken={ownerToken}
+        isNew={isNew}
+        onReload={load}
+        onSetStatus={setStatus}
+      />
+    );
+  }
 
   const { round, quiz, aggregate, submissions } = view;
   const subjectName = round.subjectName;
@@ -53,11 +72,6 @@ export function Dashboard() {
       ? r.casedType
       : (quiz.definition.outcomes!.find((o) => o.id === r.winnerId)?.label ?? r.winnerId);
   };
-
-  async function setStatus(status: "open" | "closed") {
-    await api.setStatus(ownerToken!, status);
-    load();
-  }
 
   async function remove(id: string, who: string | null) {
     if (!confirm(`Delete the answers from ${who ?? "anonymous"}?`)) return;
@@ -304,6 +318,106 @@ export function Dashboard() {
               ))}
             </section>
           </div>
+        </>
+      )}
+    </>
+  );
+}
+
+/** Owner dashboard for a group round: share/sort controls + the group picture. */
+function GroupDashboard(props: {
+  view: OwnerView;
+  ownerToken: string;
+  isNew: boolean;
+  onReload: () => void;
+  onSetStatus: (status: "open" | "closed") => void;
+}) {
+  const { view, isNew } = props;
+  const { round, quiz } = view;
+  const group = view.group!;
+  const shareUrl = `${location.origin}/s/${round.shareToken}`;
+  const sortUrl = `/s/${round.shareToken}`;
+  const sittings = group.sittingCount;
+
+  const colorOf = useMemo(() => {
+    const m: Record<string, number> = {};
+    group.subjects.forEach((sv, i) => (m[sv.subject.id] = i));
+    return m;
+  }, [group.subjects]);
+
+  const entries: GroupEntry[] = group.subjects
+    .filter((sv) => sv.aggregate.consensus)
+    .map((sv) => ({ subject: sv.subject, result: sv.aggregate.consensus! }));
+
+  return (
+    <>
+      {isNew && (
+        <div className="callout">
+          <b>Group round created — save this page&rsquo;s address.</b> It&rsquo;s the only way
+          back to these results (there are no accounts). Sort the group yourself, or send the
+          share link so someone else can.
+        </div>
+      )}
+
+      <div className="card">
+        <h2>{round.subjectName}</h2>
+        <p className="small muted">
+          {subst(quiz.title, round.subjectName)}
+          {quiz.attribution ? <> &middot; {quiz.attribution}</> : null} &middot;{" "}
+          {group.subjects.length} people &middot; round{" "}
+          {round.status === "open" ? "open" : "closed"}
+        </p>
+
+        <div className="tally-chips" style={{ margin: "8px 0 14px" }}>
+          {group.subjects.map((sv, i) => (
+            <FriendChip key={sv.subject.id} name={sv.subject.name} colorIndex={i} />
+          ))}
+        </div>
+
+        <label>Share link — send this so a friend can sort the group (or sort it yourself)</label>
+        <div className="linkbox">
+          <code>{shareUrl}</code>
+          <CopyButton text={shareUrl} />
+        </div>
+        <div className="row">
+          <Link className="btn btn-primary" to={sortUrl}>
+            Sort the group →
+          </Link>
+          <button className="btn btn-small" onClick={props.onReload}>
+            refresh
+          </button>
+          {round.status === "open" ? (
+            <button className="btn btn-small" onClick={() => props.onSetStatus("closed")}>
+              stop collecting answers
+            </button>
+          ) : (
+            <button className="btn btn-small" onClick={() => props.onSetStatus("open")}>
+              reopen round
+            </button>
+          )}
+        </div>
+      </div>
+
+      {sittings === 0 ? (
+        <div className="card">
+          <h2>No sittings yet</h2>
+          <p className="small">
+            The group picture appears here as soon as someone sorts the roster. Use the{" "}
+            <Link to={sortUrl}>Sort the group</Link> button above to do it yourself.
+          </p>
+        </div>
+      ) : (
+        <>
+          <p className="small muted" style={{ margin: "0 0 12px" }}>
+            {sittings} sitting{sittings === 1 ? "" : "s"} recorded
+            {sittings > 1 ? " — each friend's result is their consensus across sittings." : "."}
+          </p>
+          <GroupResults
+            quiz={quiz.definition}
+            entries={entries}
+            colorOf={colorOf}
+            groupTitle={round.subjectName}
+          />
         </>
       )}
     </>

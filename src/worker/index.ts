@@ -1,15 +1,20 @@
 import { Hono } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { nanoid } from "nanoid";
-import { aggregateRound, scoreSubmission } from "../shared/scoring";
+import { aggregateRound, scoreSitting, scoreSubmission } from "../shared/scoring";
 import { parseQuizDefinition, normalizeResult } from "../shared/validate";
 import { TEMPLATES } from "../shared/templates/mbti";
 import type {
   Answers,
   CreateRoundResponse,
+  GroupAnswers,
+  GroupSittingResponse,
+  GroupSubject,
+  GroupSubjectView,
   OwnerView,
   QuizDefinition,
   QuizInfo,
+  RoundMode,
   ShareView,
   SubmissionResult,
   SubmissionView,
@@ -20,6 +25,8 @@ import type {
 const MAX_SUBMISSIONS_PER_ROUND = 200;
 const MAX_NAME_LENGTH = 60;
 const MAX_DEFINITION_BYTES = 100_000;
+const MAX_GROUP_SUBJECTS = 10;
+const MAX_SITTINGS_PER_ROUND = 100;
 
 interface WorkerEnv {
   DB: D1Database;
@@ -142,11 +149,36 @@ app.get("/quizzes/:id", async (c) => {
 
 app.post("/rounds", async (c) => {
   const body = await c.req
-    .json<{ templateId?: string; quizId?: string; subjectName?: string }>()
+    .json<{
+      templateId?: string;
+      quizId?: string;
+      subjectName?: string;
+      mode?: RoundMode;
+      groupTitle?: string;
+      subjects?: string[];
+    }>()
     .catch(() => null);
-  const subjectName = body?.subjectName?.trim();
-  if (!subjectName || subjectName.length > MAX_NAME_LENGTH) {
-    return c.json({ error: `subjectName is required (max ${MAX_NAME_LENGTH} chars)` }, 400);
+
+  const isGroup = body?.mode === "group";
+
+  // For group rounds the "subject name" is the group's title; the people are
+  // the roster. For individual rounds it's the single subject.
+  let subjectName: string;
+  let roster: string[] = [];
+  if (isGroup) {
+    roster = Array.isArray(body?.subjects)
+      ? body!.subjects.map((s) => s.trim()).filter((s) => s.length > 0 && s.length <= MAX_NAME_LENGTH)
+      : [];
+    if (roster.length < 2 || roster.length > MAX_GROUP_SUBJECTS) {
+      return c.json({ error: `a group needs 2 to ${MAX_GROUP_SUBJECTS} people` }, 400);
+    }
+    subjectName = body?.groupTitle?.trim().slice(0, MAX_NAME_LENGTH) || "your friends";
+  } else {
+    const trimmed = body?.subjectName?.trim();
+    if (!trimmed || trimmed.length > MAX_NAME_LENGTH) {
+      return c.json({ error: `subjectName is required (max ${MAX_NAME_LENGTH} chars)` }, 400);
+    }
+    subjectName = trimmed;
   }
 
   const now = Date.now();
@@ -175,10 +207,30 @@ app.post("/rounds", async (c) => {
     shareToken: nanoid(24),
   };
   await c.env.DB.prepare(
-    "INSERT INTO rounds (id, quiz_id, subject_name, owner_token, share_token, status, created_at) VALUES (?, ?, ?, ?, ?, 'open', ?)",
+    "INSERT INTO rounds (id, quiz_id, subject_name, owner_token, share_token, status, mode, created_at) VALUES (?, ?, ?, ?, ?, 'open', ?, ?)",
   )
-    .bind(response.roundId, quizId, subjectName, response.ownerToken, response.shareToken, now)
+    .bind(
+      response.roundId,
+      quizId,
+      subjectName,
+      response.ownerToken,
+      response.shareToken,
+      isGroup ? "group" : "individual",
+      now,
+    )
     .run();
+
+  if (isGroup) {
+    const subjects: GroupSubject[] = roster.map((name) => ({ id: nanoid(10), name }));
+    await c.env.DB.batch(
+      subjects.map((s, i) =>
+        c.env.DB.prepare(
+          "INSERT INTO subjects (id, round_id, name, position) VALUES (?, ?, ?, ?)",
+        ).bind(s.id, response.roundId, s.name, i),
+      ),
+    );
+    response.subjects = subjects;
+  }
 
   return c.json(response, 201);
 });
@@ -190,12 +242,22 @@ interface RoundRow {
   created_at: number;
   share_token: string;
   quiz_id: string;
+  mode: RoundMode;
   definition: string;
 }
 
 const ROUND_SELECT =
-  "SELECT r.id, r.subject_name, r.status, r.created_at, r.share_token, r.quiz_id, q.definition " +
+  "SELECT r.id, r.subject_name, r.status, r.created_at, r.share_token, r.quiz_id, r.mode, q.definition " +
   "FROM rounds r JOIN quizzes q ON q.id = r.quiz_id";
+
+/** The roster of a group round, ordered for display. */
+async function fetchSubjects(db: D1Database, roundId: string): Promise<GroupSubject[]> {
+  const { results } = await db
+    .prepare("SELECT id, name FROM subjects WHERE round_id = ? ORDER BY position ASC")
+    .bind(roundId)
+    .all<{ id: string; name: string }>();
+  return results.map((s) => ({ id: s.id, name: s.name }));
+}
 
 async function roundByToken(
   db: D1Database,
@@ -220,6 +282,7 @@ app.get("/rounds/share/:shareToken", async (c) => {
   const view: ShareView = {
     subjectName: found.row.subject_name,
     status: found.row.status,
+    mode: found.row.mode,
     quizId: found.row.quiz_id,
     alreadyAnswered: getCookie(c, answeredCookie(found.row.id)) !== undefined,
     quiz: {
@@ -229,6 +292,9 @@ app.get("/rounds/share/:shareToken", async (c) => {
       definition: found.quiz,
     },
   };
+  if (found.row.mode === "group") {
+    view.subjects = await fetchSubjects(c.env.DB, found.row.id);
+  }
   return c.json(view);
 });
 
@@ -296,16 +362,82 @@ app.post("/rounds/share/:shareToken/submissions", async (c) => {
   return c.json(response, 201);
 });
 
-async function fetchSubmissions(db: D1Database, roundId: string): Promise<SubmissionView[]> {
+// A group "sitting": one person assigns every roster member to an answer on
+// every question. Expands to N submission rows (one per subject) sharing a
+// sitting_id, each scored independently. Group rounds only.
+app.post("/rounds/share/:shareToken/sitting", async (c) => {
+  const found = await roundByToken(c.env.DB, "share_token", c.req.param("shareToken"));
+  if (!found) return c.json({ error: "round not found" }, 404);
+  if (found.row.mode !== "group") return c.json({ error: "this is not a group round" }, 400);
+  if (found.row.status !== "open") return c.json({ error: "this round is closed" }, 409);
+
+  const body = await c.req
+    .json<{ respondentName?: string; answersBySubject?: GroupAnswers }>()
+    .catch(() => null);
+  if (!body?.answersBySubject) return c.json({ error: "answersBySubject is required" }, 400);
+  const respondentName = body.respondentName?.trim().slice(0, MAX_NAME_LENGTH) || null;
+
+  const roster = await fetchSubjects(c.env.DB, found.row.id);
+  const rosterIds = new Set(roster.map((s) => s.id));
+  const given = Object.keys(body.answersBySubject);
+  if (given.length !== roster.length || !given.every((id) => rosterIds.has(id))) {
+    return c.json({ error: "answers must cover exactly the roster" }, 400);
+  }
+
+  let results: Record<string, SubmissionResult>;
+  try {
+    results = scoreSitting(found.quiz, body.answersBySubject);
+  } catch (err) {
+    return c.json({ error: err instanceof Error ? err.message : "invalid answers" }, 400);
+  }
+
+  // Cap on distinct sittings, not raw rows (a sitting is N rows).
+  const { sittings } = (await c.env.DB.prepare(
+    "SELECT COUNT(DISTINCT sitting_id) AS sittings FROM submissions WHERE round_id = ?",
+  )
+    .bind(found.row.id)
+    .first<{ sittings: number }>())!;
+  if (sittings >= MAX_SITTINGS_PER_ROUND) {
+    return c.json({ error: "this round is full" }, 409);
+  }
+
+  const sittingId = nanoid(12);
+  const now = Date.now();
+  await c.env.DB.batch(
+    roster.map((s) =>
+      c.env.DB.prepare(
+        "INSERT INTO submissions (id, round_id, respondent_name, is_self, subject_id, sitting_id, answers, result, created_at) VALUES (?, ?, ?, 0, ?, ?, ?, ?, ?)",
+      ).bind(
+        nanoid(12),
+        found.row.id,
+        respondentName,
+        s.id,
+        sittingId,
+        JSON.stringify(body.answersBySubject![s.id]),
+        JSON.stringify(results[s.id]),
+        now,
+      ),
+    ),
+  );
+
+  const response: GroupSittingResponse = { sittingId, results };
+  return c.json(response, 201);
+});
+
+/** A submission plus its group tagging (subjectId is null for individual rounds). */
+type SubmissionRow = SubmissionView & { subjectId: string | null };
+
+async function fetchSubmissions(db: D1Database, roundId: string): Promise<SubmissionRow[]> {
   const { results } = await db
     .prepare(
-      "SELECT id, respondent_name, is_self, answers, result, created_at FROM submissions WHERE round_id = ? ORDER BY created_at ASC",
+      "SELECT id, respondent_name, is_self, subject_id, answers, result, created_at FROM submissions WHERE round_id = ? ORDER BY created_at ASC",
     )
     .bind(roundId)
     .all<{
       id: string;
       respondent_name: string | null;
       is_self: number;
+      subject_id: string | null;
       answers: string;
       result: string;
       created_at: number;
@@ -314,6 +446,7 @@ async function fetchSubmissions(db: D1Database, roundId: string): Promise<Submis
     id: s.id,
     respondentName: s.respondent_name,
     isSelf: s.is_self === 1,
+    subjectId: s.subject_id,
     createdAt: s.created_at,
     answers: JSON.parse(s.answers),
     // normalizeResult upgrades results stored by M1 (no `kind` field).
@@ -326,8 +459,21 @@ app.get("/rounds/owner/:ownerToken", async (c) => {
   if (!found) return c.json({ error: "round not found" }, 404);
 
   const all = await fetchSubmissions(c.env.DB, found.row.id);
-  const friends = all.filter((s) => !s.isSelf);
-  const self = all.filter((s) => s.isSelf).at(-1) ?? null;
+
+  let group: OwnerView["group"] = null;
+  let friends: SubmissionRow[] = [];
+  let self: SubmissionRow | null = null;
+  if (found.row.mode === "group") {
+    const roster = await fetchSubjects(c.env.DB, found.row.id);
+    const subjects: GroupSubjectView[] = roster.map((subject) => {
+      const subs = all.filter((s) => s.subjectId === subject.id);
+      return { subject, submissions: subs, aggregate: aggregateRound(found.quiz, subs) };
+    });
+    group = { subjects, sittingCount: await countSittings(c.env.DB, found.row.id) };
+  } else {
+    friends = all.filter((s) => !s.isSelf);
+    self = all.filter((s) => s.isSelf).at(-1) ?? null;
+  }
 
   const view: OwnerView = {
     round: {
@@ -336,6 +482,7 @@ app.get("/rounds/owner/:ownerToken", async (c) => {
       status: found.row.status,
       createdAt: found.row.created_at,
       shareToken: found.row.share_token,
+      mode: found.row.mode,
     },
     quiz: {
       title: found.quiz.title,
@@ -346,9 +493,18 @@ app.get("/rounds/owner/:ownerToken", async (c) => {
     submissions: friends,
     aggregate: aggregateRound(found.quiz, friends),
     selfSubmission: self,
+    group,
   };
   return c.json(view);
 });
+
+async function countSittings(db: D1Database, roundId: string): Promise<number> {
+  const row = await db
+    .prepare("SELECT COUNT(DISTINCT sitting_id) AS n FROM submissions WHERE round_id = ?")
+    .bind(roundId)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
 
 // The subject takes their own quiz (perception gap). Owner-token authed;
 // retaking replaces the previous self-take. Kept out of the friends'
@@ -441,6 +597,14 @@ async function shareMeta(db: D1Database, token: string, origin: string): Promise
   if (!found) return null;
   const subject = found.row.subject_name;
   const quizTitle = substName(found.quiz.title, subject);
+  if (found.row.mode === "group") {
+    return {
+      pageTitle: `Sort ${subject}`,
+      description: `Place each person in ${subject} into their answer for "${quizTitle}" and see everyone's result.`,
+      image: `${origin}/og-image.png`,
+      url: `${origin}/s/${token}`,
+    };
+  }
   const description = found.quiz.description
     ? substName(found.quiz.description, subject)
     : `${subject}'s friends are saying how they really see ${subject}. Answer "${quizTitle}" and add your take.`;

@@ -4,6 +4,7 @@ import type {
   Bin,
   ChoiceQuestion,
   DimensionsResult,
+  GroupAnswers,
   OutcomesResult,
   Question,
   QuestionAggregate,
@@ -142,6 +143,23 @@ export function scoreSubmission(quiz: QuizDefinition, answers: Answers): Submiss
     }
   }
   return outcomesResultFromScores(quiz, scores);
+}
+
+/**
+ * Score a whole group sitting: one person's answers for every roster member.
+ * Each subject is scored independently via scoreSubmission, so the group's
+ * result is just N ordinary results. Throws (via validateAnswers) if any
+ * subject's answers are incomplete or invalid.
+ */
+export function scoreSitting(
+  quiz: QuizDefinition,
+  answersBySubject: GroupAnswers,
+): Record<string, SubmissionResult> {
+  const results: Record<string, SubmissionResult> = {};
+  for (const [subjectId, answers] of Object.entries(answersBySubject)) {
+    results[subjectId] = scoreSubmission(quiz, answers);
+  }
+  return results;
 }
 
 function aggregateQuestions(

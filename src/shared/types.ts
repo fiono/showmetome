@@ -174,21 +174,44 @@ export interface QuizInfo {
   definition?: QuizDefinition;
 }
 
+/** A round is either about one person, or about a fixed roster of 2-10 people. */
+export type RoundMode = "individual" | "group";
+
+/** One member of a group round's roster. */
+export interface GroupSubject {
+  id: string;
+  name: string;
+}
+
+/** Answers for a whole group sitting: one Answers map per roster member. */
+export type GroupAnswers = Record<string /* subjectId */, Answers>;
+
 export interface CreateRoundResponse {
   roundId: string;
   subjectName: string;
   ownerToken: string;
   shareToken: string;
+  /** Present for group rounds — the created roster. */
+  subjects?: GroupSubject[];
 }
 
 export interface ShareView {
   subjectName: string;
   status: "open" | "closed";
+  mode: RoundMode;
+  /** Present for group rounds — the roster to sort. */
+  subjects?: GroupSubject[];
   /** Id of the underlying quiz, so an answerer can start their own round of it. */
   quizId: string;
   /** This browser already submitted to this round (double-submit cookie). Soft signal only. */
   alreadyAnswered: boolean;
   quiz: { title: string; description?: string; attribution?: string; definition: QuizDefinition };
+}
+
+/** Returned after a group sitting: the scored result for each roster member. */
+export interface GroupSittingResponse {
+  sittingId: string;
+  results: Record<string /* subjectId */, SubmissionResult>;
 }
 
 /** Returned after a friend submits: their result plus the rest of the group to compare against. */
@@ -208,6 +231,13 @@ export interface SubmissionView {
   answers: Answers;
 }
 
+/** One roster member on the group dashboard: their submissions + consensus. */
+export interface GroupSubjectView {
+  subject: GroupSubject;
+  submissions: SubmissionView[];
+  aggregate: RoundAggregate;
+}
+
 export interface OwnerView {
   round: {
     id: string;
@@ -215,12 +245,19 @@ export interface OwnerView {
     status: "open" | "closed";
     createdAt: number;
     shareToken: string;
+    mode: RoundMode;
   };
   quiz: { title: string; description?: string; attribution?: string; definition: QuizDefinition };
-  /** Friends' submissions only — the subject's self-take is kept separate. */
+  /** Friends' submissions only — the subject's self-take is kept separate. (Individual rounds.) */
   submissions: SubmissionView[];
-  /** Aggregated over friends only, so the consensus is untainted by the self-take. */
+  /** Aggregated over friends only, so the consensus is untainted by the self-take. (Individual rounds.) */
   aggregate: RoundAggregate;
-  /** The subject's own take on the quiz, if they've done it (perception gap). */
+  /** The subject's own take on the quiz, if they've done it (perception gap). (Individual rounds.) */
   selfSubmission: SubmissionView | null;
+  /** Per-roster-member results. Present for group rounds; null otherwise. */
+  group: {
+    subjects: GroupSubjectView[];
+    /** Number of complete sittings recorded. */
+    sittingCount: number;
+  } | null;
 }
