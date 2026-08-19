@@ -1,12 +1,15 @@
 // Canonical quiz format, shared between worker and app.
 //
-// Two scoring modes:
+// Three scoring modes:
 //  - "dimensions": bipolar axes (MBTI-style). Every question pushes the
 //    subject along one or more axes; the result is a position per axis.
 //  - "weighted-outcomes": a set of outcomes ("which X are you"). Every
 //    answer adds points to outcomes; the highest total wins.
+//  - "alignment": a 2D alignment chart (chaotic↔lawful × good↔evil style).
+//    No questions at all — the taker places the subject directly on the
+//    grid; the result is an (x, y) position plus a derived quadrant label.
 //
-// Two question types, both usable in either mode:
+// Two question types, usable in the two question-driven modes:
 //  - "scale": two opposing statements with N positions between them; each
 //    side targets a pole (dimensions) or an outcome.
 //  - "choice": a prompt with options; each option scores points toward
@@ -67,21 +70,38 @@ export interface ChoiceQuestion {
 
 export type Question = ScaleQuestion | ChoiceQuestion;
 
+/** The two named axes of an alignment chart. low = left/bottom (-1), high = right/top (+1). */
+export interface AlignmentAxes {
+  x: { low: string; high: string };
+  y: { low: string; high: string };
+}
+
 export interface QuizDefinition {
   version: 1;
   title: string;
   description?: string;
   attribution?: string;
-  scoring: "dimensions" | "weighted-outcomes";
+  scoring: "dimensions" | "weighted-outcomes" | "alignment";
   /** Present when scoring === "dimensions" */
   dimensions?: Dimension[];
   /** Present when scoring === "weighted-outcomes" */
   outcomes?: Outcome[];
+  /** Present when scoring === "alignment" */
+  alignment?: AlignmentAxes;
+  /** Empty (and required to be empty) when scoring === "alignment". */
   questions: Question[];
 }
 
 /** question id -> scale value (1..steps) for scale, option id for choice */
 export type Answers = Record<string, number | string>;
+
+/**
+ * The single answer key an alignment quiz uses. Alignment answers are
+ * `{ [PLACEMENT_KEY]: "x,y" }` with each coordinate in -1..1 — Answers'
+ * shape (string values) is untouched, so storage and group plumbing
+ * work unchanged.
+ */
+export const PLACEMENT_KEY = "placement";
 
 export type Bin = 1 | 2 | 3 | 4 | 5;
 
@@ -114,7 +134,17 @@ export interface OutcomesResult {
   winnerId: string;
 }
 
-export type SubmissionResult = DimensionsResult | OutcomesResult;
+export interface AlignmentResult {
+  kind: "alignment";
+  /** -1..1; positive means toward alignment.x.high (right) */
+  x: number;
+  /** -1..1; positive means toward alignment.y.high (top) */
+  y: number;
+  /** Derived label, e.g. "Chaotic Good", "Neutral Good", "True Neutral" */
+  quadrant: string;
+}
+
+export type SubmissionResult = DimensionsResult | OutcomesResult | AlignmentResult;
 
 export interface QuestionAggregate {
   questionId: string;
@@ -136,13 +166,17 @@ export interface OutcomeTotal {
 
 export interface RoundAggregate {
   submissionCount: number;
-  kind: "dimensions" | "outcomes";
+  kind: "dimensions" | "outcomes" | "alignment";
   consensus: SubmissionResult | null;
-  /** dimensions mode: dimension id -> per-submission axis scores (submission order) */
+  /**
+   * dimensions mode: dimension id -> per-submission axis scores.
+   * alignment mode: fixed keys "x"/"y" -> per-submission coordinates.
+   * Both are in submission order (index-aligned with the submissions list).
+   */
   axisScores: Record<string, number[]>;
   /** outcomes mode: summed points per outcome, descending */
   outcomeTotals: OutcomeTotal[];
-  /** Tally of individual verdicts (4-letter type or winning outcome label), descending */
+  /** Tally of individual verdicts (4-letter type, winning outcome label, or quadrant), descending */
   verdictTally: { label: string; count: number }[];
   questions: QuestionAggregate[];
 }
@@ -154,6 +188,7 @@ export interface TemplateInfo {
   title: string;
   description?: string;
   attribution?: string;
+  scoring: QuizDefinition["scoring"];
   questionCount: number;
 }
 
@@ -163,6 +198,7 @@ export interface QuizInfo {
   description?: string;
   attribution?: string;
   source: "template" | "manual" | "ai_import";
+  scoring: QuizDefinition["scoring"];
   questionCount: number;
   /** Owner opted in to listing this quiz on the homepage. */
   isPublic: boolean;

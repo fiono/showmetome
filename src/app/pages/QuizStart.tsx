@@ -82,7 +82,9 @@ export function QuizStart() {
         <h2>{subst(quiz.title, "your friend")}</h2>
         {quiz.description && <p className="small">{subst(quiz.description, "your friend")}</p>}
         <p className="small muted">
-          {quiz.questionCount} question{quiz.questionCount === 1 ? "" : "s"}
+          {quiz.scoring === "alignment"
+            ? "alignment chart"
+            : `${quiz.questionCount} question${quiz.questionCount === 1 ? "" : "s"}`}
           {quiz.roundCount > 0 && (
             <>
               {" "}

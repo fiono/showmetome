@@ -1,4 +1,7 @@
+import { PLACEMENT_KEY } from "./types";
 import type {
+  AlignmentAxes,
+  AlignmentResult,
   Answers,
   AxisResult,
   Bin,
@@ -15,10 +18,60 @@ import type {
 } from "./types";
 
 /**
+ * The band around each axis' center that reads as "Neutral" in a quadrant
+ * label. Matches scoreToBin's middle quintile: |v| >= 0.2 is a pole.
+ */
+export const NEUTRAL_BAND = 0.2;
+
+/** Encode an alignment placement as the stored answer value. Clamps + rounds to 2dp. */
+export function encodePlacement(x: number, y: number): string {
+  const c = (v: number) => Math.round(Math.max(-1, Math.min(1, v)) * 100) / 100;
+  return `${c(x)},${c(y)}`;
+}
+
+/** Parse + validate a stored placement value ("x,y", each -1..1). Throws on anything else. */
+export function parsePlacement(v: unknown): { x: number; y: number } {
+  if (typeof v !== "string") throw new Error("placement must be an \"x,y\" string");
+  const parts = v.split(",");
+  if (parts.length !== 2) throw new Error("placement must be an \"x,y\" string");
+  const x = Number(parts[0]);
+  const y = Number(parts[1]);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || x < -1 || x > 1 || y < -1 || y > 1) {
+    throw new Error("placement coordinates must be numbers in -1..1");
+  }
+  return { x, y };
+}
+
+/**
+ * The alignment-chart verdict for a point: pole words when the point is
+ * decisively toward an end (|v| >= NEUTRAL_BAND), "Neutral" otherwise —
+ * x-word first ("Chaotic Good"), "True Neutral" at the center.
+ */
+export function alignmentQuadrant(axes: AlignmentAxes, x: number, y: number): string {
+  const word = (v: number, axis: { low: string; high: string }) =>
+    v >= NEUTRAL_BAND ? axis.high : v <= -NEUTRAL_BAND ? axis.low : null;
+  const xWord = word(x, axes.x);
+  const yWord = word(y, axes.y);
+  if (xWord && yWord) return `${xWord} ${yWord}`;
+  if (yWord) return `Neutral ${yWord}`;
+  if (xWord) return `${xWord} Neutral`;
+  return "True Neutral";
+}
+
+/**
  * Throws with a human-readable message if `answers` is not a complete,
  * valid response to the quiz.
  */
 export function validateAnswers(quiz: QuizDefinition, answers: Answers): void {
+  if (quiz.scoring === "alignment") {
+    // No questions — the one legal shape is { [PLACEMENT_KEY]: "x,y" }.
+    const keys = Object.keys(answers);
+    if (keys.length !== 1 || keys[0] !== PLACEMENT_KEY) {
+      throw new Error(`alignment answers must be exactly { ${PLACEMENT_KEY} }`);
+    }
+    parsePlacement(answers[PLACEMENT_KEY]);
+    return;
+  }
   for (const q of quiz.questions) {
     const v = answers[q.id];
     if (v === undefined) throw new Error(`missing answer for question ${q.id}`);
@@ -116,6 +169,10 @@ function outcomesResultFromScores(
   return { kind: "outcomes", scores, winnerId };
 }
 
+function alignmentResultFromPoint(quiz: QuizDefinition, x: number, y: number): AlignmentResult {
+  return { kind: "alignment", x, y, quadrant: alignmentQuadrant(quiz.alignment!, x, y) };
+}
+
 /** Score one respondent's complete answers into a result. */
 export function scoreSubmission(quiz: QuizDefinition, answers: Answers): SubmissionResult {
   validateAnswers(quiz, answers);
@@ -126,23 +183,32 @@ export function scoreSubmission(quiz: QuizDefinition, answers: Answers): Submiss
     return dimensionsResultFromScores(quiz, scores);
   }
 
-  const scores: Record<string, number> = {};
-  for (const o of quiz.outcomes!) scores[o.id] = 0;
-  for (const q of quiz.questions) {
-    if (q.type === "scale") {
-      const offset = scaleOffset(q, answers);
-      if (offset === 0) continue;
-      const side = offset < 0 ? q.left : q.right;
-      for (const [target, weight] of Object.entries(side.scores)) {
-        scores[target] = (scores[target] ?? 0) + Math.abs(offset) * weight;
-      }
-    } else {
-      for (const [target, weight] of Object.entries(chosenOption(q, answers).scores)) {
-        scores[target] = (scores[target] ?? 0) + weight;
+  if (quiz.scoring === "alignment") {
+    const p = parsePlacement(answers[PLACEMENT_KEY]);
+    return alignmentResultFromPoint(quiz, p.x, p.y);
+  }
+
+  if (quiz.scoring === "weighted-outcomes") {
+    const scores: Record<string, number> = {};
+    for (const o of quiz.outcomes!) scores[o.id] = 0;
+    for (const q of quiz.questions) {
+      if (q.type === "scale") {
+        const offset = scaleOffset(q, answers);
+        if (offset === 0) continue;
+        const side = offset < 0 ? q.left : q.right;
+        for (const [target, weight] of Object.entries(side.scores)) {
+          scores[target] = (scores[target] ?? 0) + Math.abs(offset) * weight;
+        }
+      } else {
+        for (const [target, weight] of Object.entries(chosenOption(q, answers).scores)) {
+          scores[target] = (scores[target] ?? 0) + weight;
+        }
       }
     }
+    return outcomesResultFromScores(quiz, scores);
   }
-  return outcomesResultFromScores(quiz, scores);
+
+  throw new Error(`unsupported scoring mode ${quiz.scoring satisfies never as string}`);
 }
 
 /**
@@ -237,6 +303,33 @@ export function aggregateRound(
     return {
       submissionCount: n,
       kind: "dimensions",
+      consensus,
+      axisScores,
+      outcomeTotals: [],
+      verdictTally: sortTally(tally),
+      questions,
+    };
+  }
+
+  if (quiz.scoring === "alignment") {
+    const results = submissions.map((s) => s.result as AlignmentResult);
+    const axisScores = {
+      x: results.map((r) => r.x),
+      y: results.map((r) => r.y),
+    };
+
+    let consensus: AlignmentResult | null = null;
+    if (n > 0) {
+      const mean = (vs: number[]) => vs.reduce((a, b) => a + b, 0) / n;
+      consensus = alignmentResultFromPoint(quiz, mean(axisScores.x), mean(axisScores.y));
+    }
+
+    const tally = new Map<string, number>();
+    for (const r of results) tally.set(r.quadrant, (tally.get(r.quadrant) ?? 0) + 1);
+
+    return {
+      submissionCount: n,
+      kind: "alignment",
       consensus,
       axisScores,
       outcomeTotals: [],

@@ -47,6 +47,7 @@ app.get("/templates", (c) => {
     title: quiz.title,
     description: quiz.description,
     attribution: quiz.attribution,
+    scoring: quiz.scoring,
     questionCount: quiz.questions.length,
   }));
   return c.json(templates);
@@ -77,6 +78,7 @@ function quizInfo(row: QuizRow, quiz: QuizDefinition): QuizInfo {
     description: quiz.description,
     attribution: quiz.attribution,
     source: row.source,
+    scoring: quiz.scoring,
     questionCount: quiz.questions.length,
     isPublic: row.is_public === 1,
     roundCount: row.round_count,
@@ -597,17 +599,22 @@ async function shareMeta(db: D1Database, token: string, origin: string): Promise
   if (!found) return null;
   const subject = found.row.subject_name;
   const quizTitle = substName(found.quiz.title, subject);
+  const isAlignment = found.quiz.scoring === "alignment";
   if (found.row.mode === "group") {
     return {
       pageTitle: `Sort ${subject}`,
-      description: `Place each person in ${subject} into their answer for "${quizTitle}" and see everyone's result.`,
+      description: isAlignment
+        ? `Place everyone in ${subject} on the "${quizTitle}" chart and see where the group lands.`
+        : `Place each person in ${subject} into their answer for "${quizTitle}" and see everyone's result.`,
       image: `${origin}/og-image.png`,
       url: `${origin}/s/${token}`,
     };
   }
-  const description = found.quiz.description
-    ? substName(found.quiz.description, subject)
-    : `${subject}'s friends are saying how they really see ${subject}. Answer "${quizTitle}" and add your take.`;
+  const description = isAlignment
+    ? `Drop ${subject} where they belong on the "${quizTitle}" chart — no questions, just your gut.`
+    : found.quiz.description
+      ? substName(found.quiz.description, subject)
+      : `${subject}'s friends are saying how they really see ${subject}. Answer "${quizTitle}" and add your take.`;
   return {
     pageTitle: `How well do you know ${subject}?`,
     description,

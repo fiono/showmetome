@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { AlignmentBoard } from "./AlignmentBoard";
+import { AlignmentChart } from "./AlignmentChart";
 import { AxisChart, OutcomeBars, subst } from "./components";
 import { QuizForm } from "./QuizForm";
 import { scoreSubmission } from "../shared/scoring";
@@ -36,6 +38,15 @@ export function QuizPreview(props: {
             <AxisChart
               dimensions={quiz.dimensions!}
               scores={Object.fromEntries(result.axes.map((a) => [a.dimension, [a.score]]))}
+            />
+          </>
+        ) : result.kind === "alignment" ? (
+          <>
+            <div className="hero-type hero-outcome">{result.quadrant}</div>
+            <p className="hero-sub">That&rsquo;s the verdict for this spot on the chart.</p>
+            <AlignmentChart
+              axes={quiz.alignment!}
+              points={[{ x: result.x, y: result.y, name }]}
             />
           </>
         ) : (
@@ -79,21 +90,40 @@ export function QuizPreview(props: {
         <h1 className="quiz-hero-title">{subst(quiz.title, name)}</h1>
         {quiz.description && <p className="quiz-hero-desc">{subst(quiz.description, name)}</p>}
         <p className="small">
-          You&rsquo;re answering this <em>about {name}</em> &mdash; pick whatever sounds most
-          like <b>{name}</b>, and go fast; first instincts are the good ones. When the answers
-          come in, {name} sees the consensus, where their friends agreed, and where they
-          absolutely did not.
+          {quiz.scoring === "alignment" ? (
+            <>
+              No questions &mdash; just drop <b>{name}</b> where they belong on the chart and
+              see the verdict.
+            </>
+          ) : (
+            <>
+              You&rsquo;re answering this <em>about {name}</em> &mdash; pick whatever sounds
+              most like <b>{name}</b>, and go fast; first instincts are the good ones. When
+              the answers come in, {name} sees the consensus, where their friends agreed, and
+              where they absolutely did not.
+            </>
+          )}
         </p>
       </div>
 
-      <QuizForm
-        quiz={quiz}
-        subjectName={name}
-        submitLabel="See the result (preview)"
-        incompleteLabel="Answer all to preview"
-        busy={false}
-        onSubmit={tryAnswers}
-      />
+      {quiz.scoring === "alignment" ? (
+        <AlignmentBoard
+          quiz={quiz}
+          subjectName={name}
+          submitLabel="See the result (preview)"
+          busy={false}
+          onSubmit={tryAnswers}
+        />
+      ) : (
+        <QuizForm
+          quiz={quiz}
+          subjectName={name}
+          submitLabel="See the result (preview)"
+          incompleteLabel="Answer all to preview"
+          busy={false}
+          onSubmit={tryAnswers}
+        />
+      )}
     </>
   );
 }

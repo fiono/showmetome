@@ -300,6 +300,30 @@ Each milestone ends deployed and usable.
   Because data is stored per-friend, *collaborative consensus* (several
   people sort the same roster → per-friend perception gap) is a later add
   with no schema change. Migration `0004_group_rounds.sql`.
+- **M6 — Alignment charts. ✅ Shipped.** A third scoring mode,
+  `"alignment"`: the quiz maker names two axes (x: Chaotic↔Lawful, y:
+  Evil↔Good) and the quiz has **no questions at all** — taking it is
+  **direct placement**, tapping/dragging the subject (or, in group mode,
+  every roster member; the next chip auto-arms so 10 friends is 10 taps)
+  straight onto a 2D SVG grid. The stored answer is one
+  `{ placement: "x,y" }` entry, so `Answers`, `GroupAnswers`, the sitting
+  endpoint, and D1 are all untouched; the result is
+  `{ kind: "alignment", x, y, quadrant }` where the quadrant label combines
+  the pole words ("Chaotic Good") with a ±0.2 neutral band (matching
+  `scoreToBin`'s middle quintile) that reads "Neutral" / "True Neutral" —
+  shaded on the chart so the verdict never surprises. The validator
+  requires `questions: []` for alignment, so every per-question surface
+  (aggregates, breakdowns, divergence, agree/argue cards) no-ops by
+  construction; `aggregateRound` gains an alignment branch (mean position →
+  consensus, quadrant tally) reusing `axisScores` under fixed `"x"`/`"y"`
+  keys. One `AlignmentChart` SVG renders everywhere: builder live preview,
+  quiz-page preview, post-submit result, dashboard consensus (dots + a
+  consensus cross), self-vs-friends comparison (you-diamond + a "N% of the
+  chart apart" gap line), and the group showcase (everyone as a named,
+  roster-colored dot on one chart). The builder's third mode option is the
+  simplest authoring path in the app: four axis-end labels and done. New
+  template `tmpl_alignment_v1` ("The Alignment Chart"). No migration —
+  purely additive on the shared layer.
 
 ### Social link previews (Open Graph)
 

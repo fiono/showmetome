@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
+import { AlignmentBoard, AlignmentGroupBoard } from "../AlignmentBoard";
+import { AlignmentChart } from "../AlignmentChart";
 import { AxisChart, OutcomeBars, subst } from "../components";
 import { ComparisonView } from "../Comparison";
 import { GroupBoard } from "../GroupBoard";
@@ -131,10 +133,21 @@ function GroupSubmit(props: { shareToken: string; view: ShareView }) {
           <p className="quiz-hero-desc">{subst(view.quiz.description, view.subjectName)}</p>
         )}
         <p className="small">
-          Sort <b>{view.subjectName}</b> ({subjects.length} people) &mdash; on each question,
-          place every friend into the answer that fits. <b>Tap a friend, then tap their
-          answer</b> (or drag them in). Use <em>&ldquo;+ everyone else&rdquo;</em> to drop the
-          rest into one answer. You only read each question once.
+          {quiz.scoring === "alignment" ? (
+            <>
+              Place everyone in <b>{view.subjectName}</b> ({subjects.length} people) on the
+              chart. <b>Tap a friend, then tap where they belong</b> &mdash; the next friend
+              picks themselves up automatically. Tap a placed dot to move someone.
+            </>
+          ) : (
+            <>
+              Sort <b>{view.subjectName}</b> ({subjects.length} people) &mdash; on each
+              question, place every friend into the answer that fits. <b>Tap a friend, then
+              tap their answer</b> (or drag them in). Use{" "}
+              <em>&ldquo;+ everyone else&rdquo;</em> to drop the rest into one answer. You
+              only read each question once.
+            </>
+          )}
         </p>
         <label htmlFor="respondent">Your name (optional)</label>
         <input
@@ -147,14 +160,25 @@ function GroupSubmit(props: { shareToken: string; view: ShareView }) {
         />
       </div>
 
-      <GroupBoard
-        quiz={quiz}
-        subjects={subjects}
-        submitLabel="See everyone's results"
-        busy={busy}
-        error={error}
-        onSubmit={submit}
-      />
+      {quiz.scoring === "alignment" ? (
+        <AlignmentGroupBoard
+          quiz={quiz}
+          subjects={subjects}
+          submitLabel="See everyone's results"
+          busy={busy}
+          error={error}
+          onSubmit={submit}
+        />
+      ) : (
+        <GroupBoard
+          quiz={quiz}
+          subjects={subjects}
+          submitLabel="See everyone's results"
+          busy={busy}
+          error={error}
+          onSubmit={submit}
+        />
+      )}
     </>
   );
 }
@@ -213,6 +237,15 @@ export function Submit() {
                 dimensions={quiz.dimensions!}
                 scores={Object.fromEntries(result.axes.map((a) => [a.dimension, [a.score]]))}
                 names={["you"]}
+              />
+            </>
+          ) : result.kind === "alignment" ? (
+            <>
+              <div className="hero-type hero-outcome">{result.quadrant}</div>
+              <p className="hero-sub">Where you put {name} on the chart.</p>
+              <AlignmentChart
+                axes={quiz.alignment!}
+                points={[{ x: result.x, y: result.y, name }]}
               />
             </>
           ) : (
@@ -307,10 +340,20 @@ export function Submit() {
           <p className="quiz-hero-desc">{subst(view.quiz.description, name)}</p>
         )}
         <p className="small">
-          You&rsquo;re answering this <em>about {name}</em> &mdash; pick whatever sounds most
-          like <b>{name}</b>, and go fast; first instincts are the good ones. When the answers
-          come in, {name} sees the consensus, where their friends agreed, and where they
-          absolutely did not.
+          {quiz.scoring === "alignment" ? (
+            <>
+              No questions here &mdash; just drop <b>{name}</b> where they belong on the
+              chart. Go with your gut; first instincts are the good ones. {name} sees where
+              everyone put them.
+            </>
+          ) : (
+            <>
+              You&rsquo;re answering this <em>about {name}</em> &mdash; pick whatever sounds
+              most like <b>{name}</b>, and go fast; first instincts are the good ones. When
+              the answers come in, {name} sees the consensus, where their friends agreed, and
+              where they absolutely did not.
+            </>
+          )}
         </p>
         <label htmlFor="respondent">Your name (so {name} knows who said what)</label>
         <input
@@ -323,14 +366,25 @@ export function Submit() {
         />
       </div>
 
-      <QuizForm
-        quiz={quiz}
-        subjectName={name}
-        submitLabel={`Send to ${name}`}
-        busy={busy}
-        error={error}
-        onSubmit={submit}
-      />
+      {quiz.scoring === "alignment" ? (
+        <AlignmentBoard
+          quiz={quiz}
+          subjectName={name}
+          submitLabel={`Send to ${name}`}
+          busy={busy}
+          error={error}
+          onSubmit={submit}
+        />
+      ) : (
+        <QuizForm
+          quiz={quiz}
+          subjectName={name}
+          submitLabel={`Send to ${name}`}
+          busy={busy}
+          error={error}
+          onSubmit={submit}
+        />
+      )}
     </>
   );
 }

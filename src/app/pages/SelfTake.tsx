@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
+import { AlignmentBoard } from "../AlignmentBoard";
 import { subst } from "../components";
 import { QuizForm } from "../QuizForm";
 import type { Answers, OwnerView } from "../../shared/types";
@@ -51,14 +52,25 @@ export function SelfTake() {
         </p>
       </div>
 
-      <QuizForm
-        quiz={view.quiz.definition}
-        subjectName={name}
-        submitLabel="Compare me to my friends"
-        busy={busy}
-        error={error}
-        onSubmit={submit}
-      />
+      {view.quiz.definition.scoring === "alignment" ? (
+        <AlignmentBoard
+          quiz={view.quiz.definition}
+          subjectName="yourself"
+          submitLabel="Compare me to my friends"
+          busy={busy}
+          error={error}
+          onSubmit={submit}
+        />
+      ) : (
+        <QuizForm
+          quiz={view.quiz.definition}
+          subjectName={name}
+          submitLabel="Compare me to my friends"
+          busy={busy}
+          error={error}
+          onSubmit={submit}
+        />
+      )}
     </>
   );
 }

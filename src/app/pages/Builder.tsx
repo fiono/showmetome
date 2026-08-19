@@ -1,13 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { api } from "../api";
+import { AlignmentChart } from "../AlignmentChart";
 import { parseQuizDefinition } from "../../shared/validate";
 import type { QuizDefinition } from "../../shared/types";
 
 let nextKey = 1;
 const key = () => `k${nextKey++}`;
 
-type Mode = "dimensions" | "outcomes";
+type Mode = "dimensions" | "outcomes" | "alignment";
+
+interface AlignDraft {
+  xLow: string;
+  xHigh: string;
+  yLow: string;
+  yHigh: string;
+}
 
 interface DimDraft {
   key: string;
@@ -98,9 +106,23 @@ function draftsFromDefinition(def: QuizDefinition): {
   mode: Mode;
   dims: DimDraft[];
   outcomes: OutcomeDraft[];
+  align: AlignDraft | null;
   questions: QuestionDraft[];
 } {
-  const mode: Mode = def.scoring === "dimensions" ? "dimensions" : "outcomes";
+  const mode: Mode =
+    def.scoring === "dimensions"
+      ? "dimensions"
+      : def.scoring === "alignment"
+        ? "alignment"
+        : "outcomes";
+  const align: AlignDraft | null = def.alignment
+    ? {
+        xLow: def.alignment.x.low,
+        xHigh: def.alignment.x.high,
+        yLow: def.alignment.y.low,
+        yHigh: def.alignment.y.high,
+      }
+    : null;
   const dims: DimDraft[] = (def.dimensions ?? []).map((d) => ({
     key: key(),
     a: d.poles[0],
@@ -142,7 +164,7 @@ function draftsFromDefinition(def: QuizDefinition): {
           rightScores: scoreRows(q.right.scores),
         };
   });
-  return { mode, dims, outcomes, questions };
+  return { mode, dims, outcomes, align, questions };
 }
 
 export function Builder() {
@@ -159,6 +181,7 @@ export function Builder() {
     { key: key(), label: "", description: "" },
     { key: key(), label: "", description: "" },
   ]);
+  const [align, setAlign] = useState<AlignDraft>({ xLow: "", xHigh: "", yLow: "", yHigh: "" });
   const [questions, setQuestions] = useState<QuestionDraft[]>([]);
   const [isPublic, setIsPublic] = useState(false);
   const [clonedTitle, setClonedTitle] = useState<string | null>(null);
@@ -176,6 +199,7 @@ export function Builder() {
         setMode(drafts.mode);
         if (drafts.dims.length > 0) setDims(drafts.dims);
         if (drafts.outcomes.length > 0) setOutcomes(drafts.outcomes);
+        if (drafts.align) setAlign(drafts.align);
         setQuestions(drafts.questions);
         setClonedTitle(info.definition.title);
       },
@@ -211,6 +235,19 @@ export function Builder() {
 
   function switchMode(next: Mode) {
     if (next === mode) return;
+    if (next === "alignment") {
+      if (
+        questions.length > 0 &&
+        !confirm(
+          `Alignment charts have no questions — switching removes your ${questions.length} question${questions.length === 1 ? "" : "s"}. Continue?`,
+        )
+      ) {
+        return;
+      }
+      setMode(next);
+      setQuestions([]);
+      return;
+    }
     if (
       questions.length > 0 &&
       !confirm("Switching the result model resets which target each question scores. Continue?")
@@ -294,6 +331,19 @@ export function Builder() {
   }
 
   function buildDefinition(): unknown {
+    if (mode === "alignment") {
+      return {
+        version: 1,
+        title,
+        ...(description.trim() ? { description: description.trim() } : {}),
+        scoring: "alignment",
+        alignment: {
+          x: { low: align.xLow.trim(), high: align.xHigh.trim() },
+          y: { low: align.yLow.trim(), high: align.yHigh.trim() },
+        },
+        questions: [],
+      };
+    }
     return {
       version: 1,
       title,
@@ -405,7 +455,7 @@ export function Builder() {
         />
 
         <label style={{ marginTop: 14 }}>Result model</label>
-        <div className="mode-picker">
+        <div className="mode-picker mode-picker-3">
           <button
             type="button"
             className="mode-option"
@@ -428,11 +478,74 @@ export function Builder() {
               MBTI-style — answers slide the subject along spectrums like E&hellip;I
             </span>
           </button>
+          <button
+            type="button"
+            className="mode-option"
+            aria-pressed={mode === "alignment"}
+            onClick={() => switchMode("alignment")}
+          >
+            <b>Alignment chart</b>
+            <span className="small">
+              Name two axes — takers place {"{name}"} straight onto the grid. No questions.
+            </span>
+          </button>
         </div>
       </div>
 
       <div className="card">
-        {mode === "outcomes" ? (
+        {mode === "alignment" ? (
+          <>
+            <h2>The chart&rsquo;s axes</h2>
+            <p className="small">
+              Name both ends of each axis. Results land in nine zones &mdash; corners combine
+              both labels (&ldquo;Chaotic Good&rdquo;), the middle band reads
+              &ldquo;Neutral&rdquo;, dead center is &ldquo;True Neutral&rdquo;.
+            </p>
+            <div className="draft-row">
+              <input
+                type="text"
+                aria-label="Left end of the horizontal axis"
+                placeholder='Left end — e.g. "Chaotic"'
+                value={align.xLow}
+                maxLength={60}
+                onChange={(e) => setAlign((a) => ({ ...a, xLow: e.target.value }))}
+              />
+              <input
+                type="text"
+                aria-label="Right end of the horizontal axis"
+                placeholder='Right end — e.g. "Lawful"'
+                value={align.xHigh}
+                maxLength={60}
+                onChange={(e) => setAlign((a) => ({ ...a, xHigh: e.target.value }))}
+              />
+            </div>
+            <div className="draft-row">
+              <input
+                type="text"
+                aria-label="Bottom of the vertical axis"
+                placeholder='Bottom — e.g. "Evil"'
+                value={align.yLow}
+                maxLength={60}
+                onChange={(e) => setAlign((a) => ({ ...a, yLow: e.target.value }))}
+              />
+              <input
+                type="text"
+                aria-label="Top of the vertical axis"
+                placeholder='Top — e.g. "Good"'
+                value={align.yHigh}
+                maxLength={60}
+                onChange={(e) => setAlign((a) => ({ ...a, yHigh: e.target.value }))}
+              />
+            </div>
+            <AlignmentChart
+              axes={{
+                x: { low: align.xLow.trim() || "left", high: align.xHigh.trim() || "right" },
+                y: { low: align.yLow.trim() || "bottom", high: align.yHigh.trim() || "top" },
+              }}
+              points={[]}
+            />
+          </>
+        ) : mode === "outcomes" ? (
           <>
             <h2>Outcomes</h2>
             <p className="small">The possible results — at least two.</p>
@@ -553,6 +666,7 @@ export function Builder() {
         )}
       </div>
 
+      {mode !== "alignment" && (
       <div className="card">
         <h2>Questions</h2>
         {questions.length === 0 && (
@@ -723,6 +837,7 @@ export function Builder() {
           </button>
         </div>
       </div>
+      )}
 
       {error && (
         <div className="card">

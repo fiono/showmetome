@@ -1,3 +1,4 @@
+import { ALIGNMENT_TEMPLATE } from "./alignment";
 import type { QuizDefinition, ScaleQuestion } from "../types";
 
 // The "Fastest Personality Test" from https://dynomight.net/mbti/,
@@ -98,4 +99,5 @@ export const MBTI_QUIZ: QuizDefinition = {
 
 export const TEMPLATES: { id: string; quiz: QuizDefinition }[] = [
   { id: "tmpl_mbti_v1", quiz: MBTI_QUIZ },
+  { id: "tmpl_alignment_v1", quiz: ALIGNMENT_TEMPLATE },
 ];

@@ -1,6 +1,8 @@
+import { AlignmentChart } from "./AlignmentChart";
 import { AxisChart, FriendChip } from "./components";
 import { verdictLabel } from "./Comparison";
 import type {
+  AlignmentResult,
   DimensionsResult,
   GroupSubject,
   QuizDefinition,
@@ -45,6 +47,19 @@ export function GroupResults(props: {
                 ]),
               )}
               names={entries.map((e) => e.subject.name)}
+            />
+          </>
+        ) : quiz.scoring === "alignment" ? (
+          <>
+            <p className="hero-sub">Everyone, on one chart.</p>
+            <AlignmentChart
+              axes={quiz.alignment!}
+              points={entries.map((e) => ({
+                x: (e.result as AlignmentResult).x,
+                y: (e.result as AlignmentResult).y,
+                name: e.subject.name,
+                colorIndex: colorOf[e.subject.id],
+              }))}
             />
           </>
         ) : (

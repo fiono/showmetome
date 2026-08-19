@@ -1,4 +1,5 @@
 import type {
+  AlignmentAxes,
   ChoiceQuestion,
   Dimension,
   QuizDefinition,
@@ -45,16 +46,34 @@ export function parseQuizDefinition(raw: unknown): QuizDefinition {
   }
 
   const scoring = def.scoring;
-  if (scoring !== "dimensions" && scoring !== "weighted-outcomes") {
-    throw new Error('scoring must be "dimensions" or "weighted-outcomes"');
+  if (scoring !== "dimensions" && scoring !== "weighted-outcomes" && scoring !== "alignment") {
+    throw new Error('scoring must be "dimensions", "weighted-outcomes" or "alignment"');
   }
 
   // --- targets ---
   const targets = new Set<string>();
   let dimensions: Dimension[] | undefined;
   let outcomes: QuizDefinition["outcomes"];
+  let alignment: AlignmentAxes | undefined;
 
-  if (scoring === "dimensions") {
+  if (scoring === "alignment") {
+    // No questions, no targets — just the four axis-end labels.
+    const a = (typeof def.alignment === "object" && def.alignment !== null
+      ? def.alignment
+      : {}) as Record<string, Record<string, unknown>>;
+    const label = (axis: "x" | "y", end: "low" | "high"): string => {
+      const v = a[axis]?.[end];
+      const s = typeof v === "string" ? v.trim() : "";
+      if (!s || s.length > LIMITS.label) {
+        err(`alignment needs a ${axis}.${end} label (max ${LIMITS.label} chars)`);
+      }
+      return s;
+    };
+    alignment = {
+      x: { low: label("x", "low"), high: label("x", "high") },
+      y: { low: label("y", "low"), high: label("y", "high") },
+    };
+  } else if (scoring === "dimensions") {
     dimensions = Array.isArray(def.dimensions) ? (def.dimensions as Dimension[]) : [];
     if (dimensions.length < 1 || dimensions.length > LIMITS.dimensions) {
       err(`dimensions mode needs 1..${LIMITS.dimensions} dimensions`);
@@ -105,7 +124,11 @@ export function parseQuizDefinition(raw: unknown): QuizDefinition {
 
   // --- questions ---
   const rawQuestions = Array.isArray(def.questions) ? def.questions : [];
-  if (rawQuestions.length < 1 || rawQuestions.length > LIMITS.questions) {
+  if (scoring === "alignment") {
+    // The chart IS the quiz — requiring an empty list means every
+    // per-question surface (aggregates, breakdowns) no-ops by construction.
+    if (rawQuestions.length !== 0) err("alignment quizzes have no questions");
+  } else if (rawQuestions.length < 1 || rawQuestions.length > LIMITS.questions) {
     err(`quiz needs 1..${LIMITS.questions} questions`);
   }
   const qIds = new Set<string>();
@@ -219,6 +242,7 @@ export function parseQuizDefinition(raw: unknown): QuizDefinition {
     scoring,
     ...(dimensions ? { dimensions } : {}),
     ...(outcomes ? { outcomes } : {}),
+    ...(alignment ? { alignment } : {}),
     questions,
   };
 }

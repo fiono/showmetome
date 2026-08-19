@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateRound,
   answerDivergence,
+  encodePlacement,
+  parsePlacement,
   scoreSitting,
   scoreSubmission,
   scoreToBin,
@@ -9,7 +11,14 @@ import {
 } from "./scoring";
 import { parseQuizDefinition, normalizeResult } from "./validate";
 import { MBTI_QUIZ } from "./templates/mbti";
-import type { Answers, DimensionsResult, OutcomesResult, QuizDefinition } from "./types";
+import { PLACEMENT_KEY } from "./types";
+import type {
+  AlignmentResult,
+  Answers,
+  DimensionsResult,
+  OutcomesResult,
+  QuizDefinition,
+} from "./types";
 
 /** Answers pushed fully toward each pole named in `targets` (one per dimension). */
 function answersToward(targets: Record<string, string>): Answers {
@@ -520,5 +529,175 @@ describe("normalizeResult", () => {
     expect(normalizeResult(legacy).kind).toBe("dimensions");
     const modern = { kind: "outcomes", scores: {}, winnerId: "x" };
     expect(normalizeResult(modern).kind).toBe("outcomes");
+  });
+});
+
+// --- alignment mode ---
+
+const ALIGNMENT_QUIZ = parseQuizDefinition({
+  version: 1,
+  title: "Alignment chart of {name}",
+  scoring: "alignment",
+  alignment: {
+    x: { low: "Chaotic", high: "Lawful" },
+    y: { low: "Evil", high: "Good" },
+  },
+  questions: [],
+});
+
+describe("parseQuizDefinition (alignment)", () => {
+  it("accepts a valid alignment quiz and carries the axes through", () => {
+    expect(ALIGNMENT_QUIZ.scoring).toBe("alignment");
+    expect(ALIGNMENT_QUIZ.alignment).toEqual({
+      x: { low: "Chaotic", high: "Lawful" },
+      y: { low: "Evil", high: "Good" },
+    });
+    expect(ALIGNMENT_QUIZ.questions).toEqual([]);
+  });
+
+  it("requires all four axis labels", () => {
+    expect(() =>
+      parseQuizDefinition({
+        version: 1,
+        title: "t",
+        scoring: "alignment",
+        alignment: { x: { low: "Chaotic", high: "" }, y: { low: "Evil", high: "Good" } },
+        questions: [],
+      }),
+    ).toThrow(/x\.high/);
+    expect(() =>
+      parseQuizDefinition({ version: 1, title: "t", scoring: "alignment", questions: [] }),
+    ).toThrow(/alignment needs/);
+  });
+
+  it("rejects overlong labels", () => {
+    expect(() =>
+      parseQuizDefinition({
+        version: 1,
+        title: "t",
+        scoring: "alignment",
+        alignment: { x: { low: "x".repeat(61), high: "L" }, y: { low: "E", high: "G" } },
+        questions: [],
+      }),
+    ).toThrow(/x\.low/);
+  });
+
+  it("rejects questions on an alignment quiz", () => {
+    expect(() =>
+      parseQuizDefinition({
+        version: 1,
+        title: "t",
+        scoring: "alignment",
+        alignment: { x: { low: "C", high: "L" }, y: { low: "E", high: "G" } },
+        questions: [{ id: "q1", type: "choice", text: "?", options: [] }],
+      }),
+    ).toThrow(/no questions/);
+  });
+});
+
+describe("placement encoding + validateAnswers (alignment)", () => {
+  it("round-trips and clamps", () => {
+    expect(encodePlacement(0.256, -1.5)).toBe("0.26,-1");
+    expect(parsePlacement("0.26,-1")).toEqual({ x: 0.26, y: -1 });
+    expect(parsePlacement("0.25,-0.6")).toEqual({ x: 0.25, y: -0.6 });
+  });
+
+  it("rejects malformed placements", () => {
+    for (const bad of ["2,0", "0,-1.01", "a,b", "0.1", "0.1,0.2,0.3", 5, null, undefined]) {
+      expect(() => parsePlacement(bad)).toThrow();
+    }
+  });
+
+  it("requires exactly the placement key", () => {
+    expect(() => validateAnswers(ALIGNMENT_QUIZ, {})).toThrow(/placement/);
+    expect(() =>
+      validateAnswers(ALIGNMENT_QUIZ, { [PLACEMENT_KEY]: "0,0", q1: 1 }),
+    ).toThrow(/placement/);
+    expect(() => validateAnswers(ALIGNMENT_QUIZ, { [PLACEMENT_KEY]: "0.5,0.5" })).not.toThrow();
+  });
+});
+
+describe("scoreSubmission (alignment)", () => {
+  const at = (x: number, y: number) =>
+    scoreSubmission(ALIGNMENT_QUIZ, { [PLACEMENT_KEY]: encodePlacement(x, y) }) as AlignmentResult;
+
+  it("echoes the placement and derives the quadrant", () => {
+    const r = at(0.8, 0.9);
+    expect(r.kind).toBe("alignment");
+    expect(r.x).toBe(0.8);
+    expect(r.y).toBe(0.9);
+    expect(r.quadrant).toBe("Lawful Good");
+  });
+
+  it("labels all nine zones, with 0.2 counting as the pole", () => {
+    expect(at(-1, -1).quadrant).toBe("Chaotic Evil");
+    expect(at(1, -1).quadrant).toBe("Lawful Evil");
+    expect(at(-1, 1).quadrant).toBe("Chaotic Good");
+    expect(at(0, 1).quadrant).toBe("Neutral Good");
+    expect(at(0, -0.2).quadrant).toBe("Neutral Evil");
+    expect(at(0.2, 0).quadrant).toBe("Lawful Neutral");
+    expect(at(-0.2, 0.19).quadrant).toBe("Chaotic Neutral");
+    expect(at(0.19, -0.19).quadrant).toBe("True Neutral");
+    expect(at(0, 0).quadrant).toBe("True Neutral");
+  });
+});
+
+describe("scoreSitting (alignment)", () => {
+  it("scores each roster member's placement independently", () => {
+    const results = scoreSitting(ALIGNMENT_QUIZ, {
+      ada: { [PLACEMENT_KEY]: "1,1" },
+      ben: { [PLACEMENT_KEY]: "-1,-1" },
+      cy: { [PLACEMENT_KEY]: "0,0" },
+    });
+    expect((results.ada as AlignmentResult).quadrant).toBe("Lawful Good");
+    expect((results.ben as AlignmentResult).quadrant).toBe("Chaotic Evil");
+    expect((results.cy as AlignmentResult).quadrant).toBe("True Neutral");
+  });
+
+  it("throws if any member's placement is invalid", () => {
+    expect(() =>
+      scoreSitting(ALIGNMENT_QUIZ, {
+        ada: { [PLACEMENT_KEY]: "1,1" },
+        ben: { [PLACEMENT_KEY]: "5,0" },
+      }),
+    ).toThrow();
+  });
+});
+
+describe("aggregateRound (alignment)", () => {
+  const sub = (x: number, y: number) => {
+    const answers = { [PLACEMENT_KEY]: encodePlacement(x, y) };
+    return { answers, result: scoreSubmission(ALIGNMENT_QUIZ, answers) };
+  };
+
+  it("returns an empty aggregate for zero submissions", () => {
+    const agg = aggregateRound(ALIGNMENT_QUIZ, []);
+    expect(agg.kind).toBe("alignment");
+    expect(agg.consensus).toBeNull();
+    expect(agg.verdictTally).toEqual([]);
+    expect(agg.questions).toEqual([]);
+    expect(agg.outcomeTotals).toEqual([]);
+  });
+
+  it("consensus of one submission is that point", () => {
+    const agg = aggregateRound(ALIGNMENT_QUIZ, [sub(0.5, -0.5)]);
+    const c = agg.consensus as AlignmentResult;
+    expect(c.x).toBe(0.5);
+    expect(c.y).toBe(-0.5);
+    expect(c.quadrant).toBe("Lawful Evil");
+  });
+
+  it("averages positions and tallies quadrants across submissions", () => {
+    const agg = aggregateRound(ALIGNMENT_QUIZ, [sub(1, 1), sub(0.5, 0.5), sub(-0.6, -0.6)]);
+    expect(agg.axisScores.x).toEqual([1, 0.5, -0.6]);
+    expect(agg.axisScores.y).toEqual([1, 0.5, -0.6]);
+    const c = agg.consensus as AlignmentResult;
+    expect(c.x).toBeCloseTo(0.3);
+    expect(c.y).toBeCloseTo(0.3);
+    expect(c.quadrant).toBe("Lawful Good");
+    expect(agg.verdictTally).toEqual([
+      { label: "Lawful Good", count: 2 },
+      { label: "Chaotic Evil", count: 1 },
+    ]);
   });
 });

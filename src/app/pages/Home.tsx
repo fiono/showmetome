@@ -17,7 +17,8 @@ export function Home() {
     api.publicQuizzes().then(setPublicQuizzes, () => {});
   }, []);
 
-  const template = templates?.[0];
+  const [templateIndex, setTemplateIndex] = useState(0);
+  const template = templates?.[templateIndex];
 
   async function create() {
     if (!template || !subjectName.trim()) return;
@@ -48,10 +49,12 @@ export function Home() {
           <h2>{template ? template.title : "Loading…"}</h2>
           {template && (
             <>
-              <p className="small">{template.description}</p>
+              <p className="small">{subst(template.description ?? "", "your friend")}</p>
               <p className="small muted">
-                {template.questionCount} quick either/or questions &middot;{" "}
-                {template.attribution}
+                {template.scoring === "alignment"
+                  ? "no questions — friends place you straight on the chart"
+                  : `${template.questionCount} quick either/or questions`}{" "}
+                &middot; {template.attribution}
               </p>
               <form
                 onSubmit={(e) => {
@@ -77,6 +80,24 @@ export function Home() {
                 </div>
               </form>
               {error && <p className="error">{error}</p>}
+              {templates && templates.length > 1 && (
+                <p className="small muted" style={{ marginTop: 10 }}>
+                  Or start with:{" "}
+                  {templates.map(
+                    (t, i) =>
+                      i !== templateIndex && (
+                        <button
+                          key={t.id}
+                          type="button"
+                          className="btn btn-small"
+                          onClick={() => setTemplateIndex(i)}
+                        >
+                          {subst(t.title, "your friend")}
+                        </button>
+                      ),
+                  )}
+                </p>
+              )}
             </>
           )}
           {!template && error && <p className="error">{error}</p>}
@@ -93,7 +114,10 @@ export function Home() {
                 )}
                 <span className="small muted">
                   {" "}
-                  &middot; {q.questionCount} question{q.questionCount === 1 ? "" : "s"}
+                  &middot;{" "}
+                  {q.scoring === "alignment"
+                    ? "alignment chart"
+                    : `${q.questionCount} question${q.questionCount === 1 ? "" : "s"}`}
                   {q.submissionCount > 0 && (
                     <>
                       {" "}

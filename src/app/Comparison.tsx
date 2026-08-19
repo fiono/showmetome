@@ -1,3 +1,4 @@
+import { AlignmentChart } from "./AlignmentChart";
 import { AxisChart, QuestionBreakdown, findQuestion } from "./components";
 import { answerDivergence } from "../shared/scoring";
 import type {
@@ -80,7 +81,48 @@ export function ComparisonView(props: {
         <b className={yourResult.kind === "dimensions" ? "mono" : ""}>{verdict(yourResult)}</b>.
       </p>
 
-      {aggregate.kind === "dimensions" ? (
+      {aggregate.kind === "alignment" ? (
+        <>
+          <div className="legend">
+            <span>
+              <span className="swatch-you" /> you
+            </span>
+            <span>
+              <span className="swatch" /> one of {props.groupLabel}
+            </span>
+            <span>
+              <span className="swatch-consensus" /> their consensus
+            </span>
+          </div>
+          <AlignmentChart
+            axes={quiz.alignment!}
+            points={(aggregate.axisScores.x ?? []).map((x, i) => ({
+              x,
+              y: aggregate.axisScores.y[i],
+            }))}
+            consensus={
+              aggregate.consensus?.kind === "alignment"
+                ? { x: aggregate.consensus.x, y: aggregate.consensus.y }
+                : undefined
+            }
+            you={yourResult.kind === "alignment" ? { x: yourResult.x, y: yourResult.y } : undefined}
+          />
+          {aggregate.consensus?.kind === "alignment" && yourResult.kind === "alignment" && (
+            <p className="small muted">
+              You and their consensus are{" "}
+              {Math.round(
+                (Math.hypot(
+                  yourResult.x - aggregate.consensus.x,
+                  yourResult.y - aggregate.consensus.y,
+                ) /
+                  (2 * Math.SQRT2)) *
+                  100,
+              )}
+              % of the chart apart.
+            </p>
+          )}
+        </>
+      ) : aggregate.kind === "dimensions" ? (
         <>
           <div className="legend">
             <span>
@@ -127,6 +169,7 @@ export function ComparisonView(props: {
         </>
       )}
 
+      {quiz.questions.length > 0 && (
       <section className="block">
         <h3>Where you split from {props.groupLabel}</h3>
         {differ.length === 0 ? (
@@ -145,7 +188,9 @@ export function ComparisonView(props: {
           ))
         )}
       </section>
+      )}
 
+      {quiz.questions.length > 0 && (
       <details style={{ marginTop: 14 }}>
         <summary className="small" style={{ cursor: "pointer" }}>
           Every question, with your answer marked
@@ -162,12 +207,13 @@ export function ComparisonView(props: {
           ))}
         </div>
       </details>
+      )}
     </>
   );
 }
 
 export function verdictLabel(quiz: QuizDefinition, r: SubmissionResult): string {
-  return r.kind === "dimensions"
-    ? r.casedType
-    : (quiz.outcomes!.find((o) => o.id === r.winnerId)?.label ?? r.winnerId);
+  if (r.kind === "dimensions") return r.casedType;
+  if (r.kind === "alignment") return r.quadrant;
+  return quiz.outcomes!.find((o) => o.id === r.winnerId)?.label ?? r.winnerId;
 }

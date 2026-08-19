@@ -10,7 +10,8 @@ import {
   findQuestion,
   subst,
 } from "../components";
-import { ComparisonView } from "../Comparison";
+import { AlignmentChart } from "../AlignmentChart";
+import { ComparisonView, verdictLabel } from "../Comparison";
 import { GroupResults, type GroupEntry } from "../GroupResults";
 import type { OwnerView } from "../../shared/types";
 
@@ -66,12 +67,7 @@ export function Dashboard() {
   const mostAgreed = byDisagreement.slice(0, highlightCount);
   const mostDivided = byDisagreement.slice(-highlightCount).reverse();
 
-  const verdictOf = (s: (typeof submissions)[number]) => {
-    const r = s.result;
-    return r.kind === "dimensions"
-      ? r.casedType
-      : (quiz.definition.outcomes!.find((o) => o.id === r.winnerId)?.label ?? r.winnerId);
-  };
+  const verdictOf = (s: (typeof submissions)[number]) => verdictLabel(quiz.definition, s.result);
 
   async function remove(id: string, who: string | null) {
     if (!confirm(`Delete the answers from ${who ?? "anonymous"}?`)) return;
@@ -165,6 +161,38 @@ export function Dashboard() {
                         : undefined
                     }
                     names={names}
+                  />
+                </>
+              ) : aggregate.kind === "alignment" ? (
+                <>
+                  <div className="hero-type hero-outcome">
+                    {aggregate.consensus!.kind === "alignment" && aggregate.consensus!.quadrant}
+                  </div>
+                  <p className="hero-sub">
+                    Averaged across {n} placement{n === 1 ? "" : "s"} — the marker is where
+                    your friends put you, on balance.
+                  </p>
+                  <div className="legend">
+                    <span>
+                      <span className="swatch" /> a friend&rsquo;s placement
+                    </span>
+                    <span>
+                      <span className="swatch-consensus" /> consensus
+                    </span>
+                  </div>
+                  <AlignmentChart
+                    axes={quiz.definition.alignment!}
+                    points={(aggregate.axisScores.x ?? []).map((x, i) => ({
+                      x,
+                      y: aggregate.axisScores.y[i],
+                      name: names[i] ?? "anonymous",
+                      colorIndex: i,
+                    }))}
+                    consensus={
+                      aggregate.consensus!.kind === "alignment"
+                        ? { x: aggregate.consensus!.x, y: aggregate.consensus!.y }
+                        : undefined
+                    }
                   />
                 </>
               ) : (
@@ -274,23 +302,25 @@ export function Dashboard() {
             </div>
           )}
 
-          <div className="card">
-            <details>
-              <summary className="small" style={{ cursor: "pointer" }}>
-                Every question, every answer ({aggregate.questions.length} questions)
-              </summary>
-              <div style={{ marginTop: 10 }}>
-                {aggregate.questions.map((qa) => (
-                  <QuestionBreakdown
-                    key={qa.questionId}
-                    question={findQuestion(quiz.definition, qa.questionId)}
-                    qa={qa}
-                    subjectName={subjectName}
-                  />
-                ))}
-              </div>
-            </details>
-          </div>
+          {aggregate.questions.length > 0 && (
+            <div className="card">
+              <details>
+                <summary className="small" style={{ cursor: "pointer" }}>
+                  Every question, every answer ({aggregate.questions.length} questions)
+                </summary>
+                <div style={{ marginTop: 10 }}>
+                  {aggregate.questions.map((qa) => (
+                    <QuestionBreakdown
+                      key={qa.questionId}
+                      question={findQuestion(quiz.definition, qa.questionId)}
+                      qa={qa}
+                      subjectName={subjectName}
+                    />
+                  ))}
+                </div>
+              </details>
+            </div>
+          )}
 
           <div className="card">
             <section>
