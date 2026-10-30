@@ -384,7 +384,7 @@ function GroupDashboard(props: {
       {isNew && (
         <div className="callout">
           <b>Group round created — save this page&rsquo;s address.</b> It&rsquo;s the only way
-          back to these results (there are no accounts). Sort the group yourself, or send the
+          back to these results (there are no accounts). Take the quiz yourself, or send the
           share link so someone else can.
         </div>
       )}
@@ -404,14 +404,14 @@ function GroupDashboard(props: {
           ))}
         </div>
 
-        <label>Share link — send this so a friend can sort the group (or sort it yourself)</label>
+        <label>Share link — send this so a friend can take the quiz about the group</label>
         <div className="linkbox">
           <code>{shareUrl}</code>
           <CopyButton text={shareUrl} />
         </div>
         <div className="row">
           <Link className="btn btn-primary" to={sortUrl}>
-            Sort the group →
+            Take the quiz yourself →
           </Link>
           <button className="btn btn-small" onClick={props.onReload}>
             refresh
@@ -430,17 +430,17 @@ function GroupDashboard(props: {
 
       {sittings === 0 ? (
         <div className="card">
-          <h2>No sittings yet</h2>
+          <h2>No answers yet</h2>
           <p className="small">
-            The group picture appears here as soon as someone sorts the roster. Use the{" "}
-            <Link to={sortUrl}>Sort the group</Link> button above to do it yourself.
+            The group picture appears here as soon as someone takes the quiz.{" "}
+            <Link to={sortUrl}>Take it yourself</Link> to get it started.
           </p>
         </div>
       ) : (
         <>
           <p className="small muted" style={{ margin: "0 0 12px" }}>
-            {sittings} sitting{sittings === 1 ? "" : "s"} recorded
-            {sittings > 1 ? " — each friend's result is their consensus across sittings." : "."}
+            {sittings} {sittings === 1 ? "person has" : "people have"} taken it
+            {sittings > 1 ? " — each friend's result blends everyone's answers." : "."}
           </p>
           <GroupResults
             quiz={quiz.definition}

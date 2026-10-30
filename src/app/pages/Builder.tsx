@@ -522,19 +522,19 @@ export function Builder() {
             <div className="draft-row">
               <input
                 type="text"
-                aria-label="Bottom of the vertical axis"
-                placeholder='Bottom — e.g. "Evil"'
-                value={align.yLow}
-                maxLength={60}
-                onChange={(e) => setAlign((a) => ({ ...a, yLow: e.target.value }))}
-              />
-              <input
-                type="text"
                 aria-label="Top of the vertical axis"
                 placeholder='Top — e.g. "Good"'
                 value={align.yHigh}
                 maxLength={60}
                 onChange={(e) => setAlign((a) => ({ ...a, yHigh: e.target.value }))}
+              />
+              <input
+                type="text"
+                aria-label="Bottom of the vertical axis"
+                placeholder='Bottom — e.g. "Evil"'
+                value={align.yLow}
+                maxLength={60}
+                onChange={(e) => setAlign((a) => ({ ...a, yLow: e.target.value }))}
               />
             </div>
             <AlignmentChart

@@ -195,7 +195,9 @@ app.post("/rounds", async (c) => {
     const template = TEMPLATES.find((t) => t.id === body?.templateId);
     if (!template) return c.json({ error: "unknown templateId or quizId" }, 400);
     await c.env.DB.prepare(
-      "INSERT OR IGNORE INTO quizzes (id, title, source, definition, created_at) VALUES (?, ?, 'template', ?, ?)",
+      // Upsert so edits to a template in code reach databases that already hold it.
+      "INSERT INTO quizzes (id, title, source, definition, created_at) VALUES (?, ?, 'template', ?, ?) " +
+        "ON CONFLICT(id) DO UPDATE SET title = excluded.title, definition = excluded.definition",
     )
       .bind(template.id, template.quiz.title, JSON.stringify(template.quiz), now)
       .run();

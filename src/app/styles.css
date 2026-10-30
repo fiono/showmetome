@@ -1073,6 +1073,7 @@ footer.site a {
 .align-top {
   grid-column: 2;
   grid-row: 1;
+  justify-self: center;
 }
 .align-left {
   grid-column: 1;
@@ -1089,6 +1090,7 @@ footer.site a {
 .align-bottom {
   grid-column: 2;
   grid-row: 3;
+  justify-self: center;
 }
 .align-plot {
   grid-column: 2;
@@ -1162,4 +1164,14 @@ footer.site a {
   .align-dot-label {
     display: none; /* names live in the lists below the chart */
   }
+}
+/* a .quiz-link row that features a template on the homepage instead of navigating */
+.quiz-link-button {
+  font: inherit;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--grid);
+  cursor: pointer;
 }

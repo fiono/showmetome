@@ -6,7 +6,7 @@ import type { QuizDefinition } from "../types";
 
 export const ALIGNMENT_TEMPLATE: QuizDefinition = {
   version: 1,
-  title: "The Alignment Chart",
+  title: "D&D Alignment Chart",
   description:
     "Where does {name} really sit? One tap, nine possible verdicts — " +
     "from Lawful Good to Chaotic Evil.",

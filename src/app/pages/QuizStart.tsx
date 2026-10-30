@@ -3,10 +3,8 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { api } from "../api";
 import { CopyButton, subst } from "../components";
 import { QuizPreview } from "../QuizPreview";
+import { MIN_ROSTER, RosterFields, rosterNames } from "../RosterFields";
 import type { QuizInfo } from "../../shared/types";
-
-const MIN_ROSTER = 2;
-const MAX_ROSTER = 10;
 
 /** Home of a saved quiz: bookmarkable, starts new rounds of it. */
 export function QuizStart() {
@@ -40,18 +38,8 @@ export function QuizStart() {
     }
   }
 
-  const names = roster.map((n) => n.trim()).filter(Boolean);
+  const names = rosterNames(roster);
   const groupReady = names.length >= MIN_ROSTER;
-
-  function setName(i: number, value: string) {
-    setRoster((r) => r.map((n, j) => (j === i ? value : n)));
-  }
-  function addName() {
-    setRoster((r) => (r.length >= MAX_ROSTER ? r : [...r, ""]));
-  }
-  function removeName(i: number) {
-    setRoster((r) => (r.length <= MIN_ROSTER ? r : r.filter((_, j) => j !== i)));
-  }
 
   async function startGroup() {
     if (!quizId || !groupReady) return;
@@ -159,46 +147,13 @@ export function QuizStart() {
               startGroup();
             }}
           >
-            <label htmlFor="grouptitle">Group name (optional)</label>
-            <input
-              id="grouptitle"
-              type="text"
-              placeholder="e.g. the book club, my roommates"
-              value={groupTitle}
-              maxLength={60}
-              onChange={(e) => setGroupTitle(e.target.value)}
+            <RosterFields
+              groupTitle={groupTitle}
+              onGroupTitle={setGroupTitle}
+              roster={roster}
+              onRoster={setRoster}
             />
-            <label style={{ marginTop: 12 }}>
-              Who&rsquo;s in the group? ({names.length}/{MAX_ROSTER})
-            </label>
-            {roster.map((name, i) => (
-              <div className="draft-row" key={i}>
-                <input
-                  type="text"
-                  aria-label={`Friend ${i + 1}`}
-                  placeholder={`Friend ${i + 1}`}
-                  value={name}
-                  maxLength={60}
-                  onChange={(e) => setName(i, e.target.value)}
-                />
-                {roster.length > MIN_ROSTER && (
-                  <button
-                    type="button"
-                    className="btn btn-small btn-danger"
-                    onClick={() => removeName(i)}
-                    aria-label={`Remove friend ${i + 1}`}
-                  >
-                    remove
-                  </button>
-                )}
-              </div>
-            ))}
-            <div className="row" style={{ marginTop: 4 }}>
-              {roster.length < MAX_ROSTER && (
-                <button type="button" className="btn btn-small" onClick={addName}>
-                  + add friend
-                </button>
-              )}
+            <div className="row" style={{ marginTop: 12 }}>
               <button className="btn btn-primary" disabled={busy || !groupReady}>
                 {busy ? "Creating…" : "Create group round"}
               </button>
