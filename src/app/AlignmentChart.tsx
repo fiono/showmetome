@@ -48,7 +48,7 @@ export function AlignmentChart(props: {
   onPlace?: (x: number, y: number) => void;
   /** interactive: drag continuation of the same gesture; defaults to onPlace */
   onDrag?: (x: number, y: number) => void;
-  /** interactive: tap a placed dot (index into points) to pick it back up */
+  /** interactive: press a placed dot (index into points) to pick it back up and drag it */
   onPointClick?: (index: number) => void;
   /** index into points to ring-highlight (the re-armed dot) */
   armedIndex?: number;

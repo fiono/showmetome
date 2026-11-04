@@ -137,7 +137,7 @@ function GroupSubmit(props: { shareToken: string; view: ShareView }) {
             <>
               Place everyone in <b>{view.subjectName}</b> ({subjects.length} people) on the
               chart. <b>Tap a friend, then tap where they belong</b> &mdash; the next friend
-              picks themselves up automatically. Tap a placed dot to move someone.
+              picks themselves up automatically. Drag a placed dot to move someone.
             </>
           ) : (
             <>

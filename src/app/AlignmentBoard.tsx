@@ -61,7 +61,7 @@ export function AlignmentBoard(props: {
 /**
  * Group-mode alignment board: a tray of friend chips above one chart. Tap a
  * chip to pick it up, tap the chart to drop it there — the next unplaced
- * chip arms itself, so a 10-person roster is 10 taps. Tap a placed dot to
+ * chip arms itself, so a 10-person roster is 10 taps. Drag a placed dot to
  * pick that friend back up and move them (or just drag them around).
  */
 export function AlignmentGroupBoard(props: {
@@ -124,7 +124,7 @@ export function AlignmentGroupBoard(props: {
       <div className="card">
         <div className="tray" aria-label="friends still to place">
           {unplaced.length === 0 ? (
-            <span className="small muted">Everyone placed ✓ — tap a dot to move someone</span>
+            <span className="small muted">Everyone placed ✓ — drag a dot to move someone</span>
           ) : (
             unplaced.map((s) => (
               <FriendChip
